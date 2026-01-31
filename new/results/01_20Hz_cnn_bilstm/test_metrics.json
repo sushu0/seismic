@@ -1,0 +1,7 @@
+{
+  "test_pcc": 0.2774863541126251,
+  "test_r2": -0.9315167665481567,
+  "test_rmse": 831656.1875,
+  "model": "CNN-BiLSTM (comparison01)",
+  "frequency": "20Hz"
+}

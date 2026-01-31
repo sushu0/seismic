@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+.venv310/
+venv/
+ENV/
+env/
+new/.venv/
+new/Lib/
+new/Scripts/
+
+# Model files
+*.pt
+*.pth
+*.npz
+checkpoints/
+model_save/
+
+# Large data files
+# Specific large data directories
+Data/
+Marmousi/model/
+Marmousi2/data/
+Marmousi2/data2/
+Marmousi2/output_txt/
+
+# Large file extensions
+*.npy
+*.sgy
+*.segy
+*.asc
+*.zip
+data.npy
+seismic.npy
+impedance*.npy
+
+# Large text / docs (keep small README.md etc.)
+**/impedance.txt
+**/density_output.txt
+*.pdf
+*.docx
+
+# Big data folders (top-level)
+zmy_data/
+Data/
+Marmousi/model/
+Marmousi2/data/
+Marmousi2/data2/
+Marmousi2/output_txt/
+
+# Big data folders (nested duplicate project folder)
+SEISMIC_CODING/zmy_data/
+SEISMIC_CODING/Data/
+SEISMIC_CODING/Marmousi/model/
+SEISMIC_CODING/Marmousi2/data/
+SEISMIC_CODING/Marmousi2/data2/
+SEISMIC_CODING/Marmousi2/output_txt/
+
+# Output directories
+output_images/
+svg_images/
+figures/
+figures_*/
+demo_out/
+runs/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git nested repo
+new/real_data_inference/.git/

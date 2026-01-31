@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: ss-gan-impedance
+Version: 0.1.0
+Summary: Semi-supervised GAN (WGAN-GP) for seismic impedance inversion (paper-aligned core).
+Requires-Python: >=3.9
+Requires-Dist: torch
+Requires-Dist: numpy
+Requires-Dist: pyyaml
+Requires-Dist: tqdm
+Requires-Dist: matplotlib

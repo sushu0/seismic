@@ -1,0 +1,22 @@
+run_dir: runs/toy_fast
+seed: 1234
+device: cuda
+dataset:
+  path: data/synth_toy.npz
+  normalize: true
+epochs: 10
+batch_size: 10
+lr: 0.001
+n_critic: 5
+alpha: 1100
+beta: 550
+lambda_gp: 10
+k_large: 299
+k_small: 3
+base_ch_g: 16
+base_ch_d: 8
+wavelet_freq: 30.0
+wavelet_dt: 0.001
+wavelet_dur: 0.128
+save_every: 1
+amp: false

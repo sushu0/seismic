@@ -1,0 +1,4 @@
+Model,PCC,R2,MSE
+UNet1D Baseline,0.5218,0.2697,0.8167
+TCN1D Baseline,0.3942,0.0930,1.0143
+MS-PhysFormer (supervised),0.3723,0.0418,1.0716

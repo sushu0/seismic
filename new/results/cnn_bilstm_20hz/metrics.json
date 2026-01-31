@@ -1,0 +1,8 @@
+{
+  "test_pcc": 0.054533738642930984,
+  "test_r2": -3.108386993408203,
+  "test_rmse": 1212914.75,
+  "test_mae": 1117527.625,
+  "model": "CNN-BiLSTM (supervised)",
+  "data": "20Hz"
+}

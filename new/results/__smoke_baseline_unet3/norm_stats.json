@@ -1,0 +1,11 @@
+{
+  "seis_mean": 0.005678026005625725,
+  "seis_std": 0.062149433178663255,
+  "imp_mean": 8072.8447265625,
+  "imp_std": 2265.828126,
+  "norm": {
+    "seismic": "zscore",
+    "impedance": "zscore",
+    "eps": 1e-06
+  }
+}

@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fcrsn-cw-repro"
+version = "0.1.0"
+description = "Reproduction of FCRSN-CW seismic impedance inversion (core method)."
+requires-python = ">=3.9"
+dependencies = ["numpy", "scipy", "matplotlib", "tqdm", "torch"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fcrsn_cw*"]

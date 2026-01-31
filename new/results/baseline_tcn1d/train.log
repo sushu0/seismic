@@ -1,0 +1,60 @@
+[2025-12-23 19:45:19] Using device: cuda
+[2025-12-23 19:45:19] Config: {'seed': 42, 'deterministic': True, 'device': 'cuda', 'data': {'data_root': 'data/toy', 'norm': {'seismic': 'zscore', 'impedance': 'zscore', 'eps': 1e-06}}, 'model': {'name': 'tcn1d', 'ch': 64, 'layers': 6, 'dropout': 0.1}, 'physics': {'dt_s': 0.002, 'wavelet_f0_hz': 30.0, 'wavelet_length_s': 0.128, 'eps': 1e-06}, 'train': {'epochs': 3, 'batch_size': 8, 'batch_size_eval': 16, 'lr': 0.001, 'weight_decay': 0.0001, 'grad_clip': 5.0, 'sup_loss': 'smoothl1', 'use_unlabeled': False, 'use_teacher': False, 'lambda_phys': 0.0, 'lambda_freq': 0.0, 'lambda_cons': 0.0, 'phys_loss_mode': 'mse', 'stft_n_fft': 256, 'stft_hop': 64, 'stft_win': 256, 'aug_noise': 0.02, 'aug_amp': 0.1, 'aug_shift': 8, 'ema': 0.99}, 'output': {'root': 'results', 'exp_name': 'baseline_tcn1d', 'make_plots': True}}
+[2025-12-23 19:45:22] Epoch 1: train_total=0.680995 val_mse=1.270838 val_pcc=0.0248 val_r2=-0.2481
+[2025-12-23 19:45:23] Epoch 2: train_total=0.433099 val_mse=1.172025 val_pcc=0.1632 val_r2=-0.1511
+[2025-12-23 19:45:24] Epoch 3: train_total=0.400571 val_mse=0.974100 val_pcc=0.3427 val_r2=0.0433
+[2025-12-23 19:45:28] Done. test_metrics={'MSE': 1.0143386938234968, 'PCC': 0.394185245300099, 'R2': 0.09298595457542447}
+[2025-12-23 22:12:41] Using device: cuda
+[2025-12-23 22:12:41] Config: {'seed': 42, 'deterministic': True, 'device': 'cuda', 'data': {'data_root': 'data/toy', 'norm': {'seismic': 'zscore', 'impedance': 'zscore', 'eps': 1e-06}}, 'model': {'name': 'tcn1d', 'ch': 64, 'layers': 6, 'dropout': 0.1}, 'physics': {'dt_s': 0.002, 'wavelet_f0_hz': 30.0, 'wavelet_length_s': 0.128, 'eps': 1e-06}, 'train': {'epochs': 100, 'batch_size': 8, 'batch_size_eval': 16, 'lr': 0.001, 'weight_decay': 0.0001, 'grad_clip': 5.0, 'sup_loss': 'smoothl1', 'use_unlabeled': False, 'use_teacher': False, 'lambda_phys': 0.0, 'lambda_freq': 0.0, 'lambda_cons': 0.0, 'phys_loss_mode': 'mse', 'stft_n_fft': 256, 'stft_hop': 64, 'stft_win': 256, 'aug_noise': 0.02, 'aug_amp': 0.1, 'aug_shift': 8, 'ema': 0.99}, 'output': {'root': 'results', 'exp_name': 'baseline_tcn1d', 'make_plots': True}}
+[2025-12-23 22:12:45] Epoch 1: train_total=0.680995 val_mse=1.270838 val_pcc=0.0248 val_r2=-0.2481
+[2025-12-23 22:12:46] Epoch 2: train_total=0.437232 val_mse=1.138394 val_pcc=0.1928 val_r2=-0.1180
+[2025-12-23 22:12:47] Epoch 3: train_total=0.393299 val_mse=0.970239 val_pcc=0.3441 val_r2=0.0471
+[2025-12-23 22:12:48] Epoch 4: train_total=0.366424 val_mse=0.894554 val_pcc=0.4293 val_r2=0.1215
+[2025-12-23 22:12:49] Epoch 5: train_total=0.350160 val_mse=0.827990 val_pcc=0.4784 val_r2=0.1868
+[2025-12-23 22:12:50] Epoch 6: train_total=0.330381 val_mse=0.762286 val_pcc=0.5128 val_r2=0.2514
+[2025-12-23 22:12:51] Epoch 7: train_total=0.329052 val_mse=0.791160 val_pcc=0.5057 val_r2=0.2230
+[2025-12-23 22:15:59] Using device: cuda
+[2025-12-23 22:15:59] Config: {'seed': 42, 'deterministic': True, 'device': 'cuda', 'data': {'data_root': 'data/toy', 'norm': {'seismic': 'zscore', 'impedance': 'zscore', 'eps': 1e-06}}, 'model': {'name': 'tcn1d', 'ch': 64, 'layers': 6, 'dropout': 0.1}, 'physics': {'dt_s': 0.002, 'wavelet_f0_hz': 30.0, 'wavelet_length_s': 0.128, 'eps': 1e-06}, 'train': {'epochs': 50, 'batch_size': 8, 'batch_size_eval': 16, 'lr': 0.001, 'weight_decay': 0.0001, 'grad_clip': 5.0, 'sup_loss': 'smoothl1', 'use_unlabeled': False, 'use_teacher': False, 'lambda_phys': 0.0, 'lambda_freq': 0.0, 'lambda_cons': 0.0, 'phys_loss_mode': 'mse', 'stft_n_fft': 256, 'stft_hop': 64, 'stft_win': 256, 'aug_noise': 0.02, 'aug_amp': 0.1, 'aug_shift': 8, 'ema': 0.99}, 'output': {'root': 'results', 'exp_name': 'baseline_tcn1d', 'make_plots': True}}
+[2025-12-23 22:16:02] Epoch 1: train_total=0.680995 val_mse=1.270838 val_pcc=0.0248 val_r2=-0.2481
+[2025-12-23 22:16:03] Epoch 2: train_total=0.437219 val_mse=1.138477 val_pcc=0.1927 val_r2=-0.1181
+[2025-12-23 22:16:03] Epoch 3: train_total=0.393315 val_mse=0.970388 val_pcc=0.3439 val_r2=0.0470
+[2025-12-23 22:16:04] Epoch 4: train_total=0.366479 val_mse=0.894813 val_pcc=0.4290 val_r2=0.1212
+[2025-12-23 22:16:05] Epoch 5: train_total=0.350284 val_mse=0.828213 val_pcc=0.4782 val_r2=0.1866
+[2025-12-23 22:16:06] Epoch 6: train_total=0.330626 val_mse=0.763163 val_pcc=0.5119 val_r2=0.2505
+[2025-12-23 22:16:07] Epoch 7: train_total=0.329007 val_mse=0.790509 val_pcc=0.5056 val_r2=0.2236
+[2025-12-23 22:16:08] Epoch 8: train_total=0.321310 val_mse=0.745980 val_pcc=0.5408 val_r2=0.2674
+[2025-12-23 22:16:09] Epoch 9: train_total=0.298424 val_mse=0.726528 val_pcc=0.5593 val_r2=0.2865
+[2025-12-23 22:16:09] Epoch 10: train_total=0.286210 val_mse=0.704217 val_pcc=0.5639 val_r2=0.3084
+[2025-12-23 22:16:10] Epoch 11: train_total=0.283634 val_mse=0.690410 val_pcc=0.5876 val_r2=0.3219
+[2025-12-23 22:16:11] Epoch 12: train_total=0.279935 val_mse=0.725617 val_pcc=0.5839 val_r2=0.2874
+[2025-12-23 22:16:12] Epoch 13: train_total=0.274365 val_mse=0.696170 val_pcc=0.5762 val_r2=0.3163
+[2025-12-23 22:16:13] Epoch 14: train_total=0.264605 val_mse=0.703100 val_pcc=0.5958 val_r2=0.3095
+[2025-12-23 22:16:14] Epoch 15: train_total=0.258109 val_mse=0.688405 val_pcc=0.5886 val_r2=0.3239
+[2025-12-23 22:16:14] Epoch 16: train_total=0.267501 val_mse=0.674579 val_pcc=0.5974 val_r2=0.3375
+[2025-12-23 22:16:15] Epoch 17: train_total=0.264700 val_mse=0.692885 val_pcc=0.6000 val_r2=0.3195
+[2025-12-23 22:16:16] Epoch 18: train_total=0.256661 val_mse=0.709937 val_pcc=0.5826 val_r2=0.3028
+[2025-12-23 22:17:24] Using device: cuda
+[2025-12-23 22:17:24] Config: {'seed': 42, 'deterministic': True, 'device': 'cuda', 'data': {'data_root': 'data/toy', 'norm': {'seismic': 'zscore', 'impedance': 'zscore', 'eps': 1e-06}}, 'model': {'name': 'tcn1d', 'ch': 64, 'layers': 6, 'dropout': 0.1}, 'physics': {'dt_s': 0.002, 'wavelet_f0_hz': 30.0, 'wavelet_length_s': 0.128, 'eps': 1e-06}, 'train': {'epochs': 30, 'batch_size': 8, 'batch_size_eval': 16, 'lr': 0.001, 'weight_decay': 0.0001, 'grad_clip': 5.0, 'sup_loss': 'smoothl1', 'use_unlabeled': False, 'use_teacher': False, 'lambda_phys': 0.0, 'lambda_freq': 0.0, 'lambda_cons': 0.0, 'phys_loss_mode': 'mse', 'stft_n_fft': 256, 'stft_hop': 64, 'stft_win': 256, 'aug_noise': 0.02, 'aug_amp': 0.1, 'aug_shift': 8, 'ema': 0.99}, 'output': {'root': 'results', 'exp_name': 'baseline_tcn1d', 'make_plots': True}}
+[2025-12-23 22:17:27] Epoch 1: train_total=0.680995 val_mse=1.270838 val_pcc=0.0248 val_r2=-0.2481
+[2025-12-23 22:17:28] Epoch 2: train_total=0.437188 val_mse=1.138800 val_pcc=0.1924 val_r2=-0.1184
+[2025-12-23 22:17:29] Epoch 3: train_total=0.393356 val_mse=0.971246 val_pcc=0.3433 val_r2=0.0461
+[2025-12-23 22:17:30] Epoch 4: train_total=0.366614 val_mse=0.895604 val_pcc=0.4284 val_r2=0.1204
+[2025-12-23 22:17:31] Epoch 5: train_total=0.350578 val_mse=0.828935 val_pcc=0.4777 val_r2=0.1859
+[2025-12-23 22:17:32] Epoch 6: train_total=0.331223 val_mse=0.765494 val_pcc=0.5100 val_r2=0.2482
+[2025-12-23 22:17:32] Epoch 7: train_total=0.329006 val_mse=0.788146 val_pcc=0.5058 val_r2=0.2260
+[2025-12-23 22:17:33] Epoch 8: train_total=0.321870 val_mse=0.745444 val_pcc=0.5419 val_r2=0.2679
+[2025-12-23 22:17:34] Epoch 9: train_total=0.297896 val_mse=0.737259 val_pcc=0.5527 val_r2=0.2759
+[2025-12-23 22:17:35] Epoch 10: train_total=0.287591 val_mse=0.703081 val_pcc=0.5650 val_r2=0.3095
+[2025-12-23 22:17:36] Epoch 11: train_total=0.286594 val_mse=0.690980 val_pcc=0.5843 val_r2=0.3214
+[2025-12-23 22:17:37] Epoch 12: train_total=0.281684 val_mse=0.733606 val_pcc=0.5735 val_r2=0.2795
+[2025-12-23 22:17:38] Epoch 13: train_total=0.277204 val_mse=0.690023 val_pcc=0.5851 val_r2=0.3223
+[2025-12-23 22:17:38] Epoch 14: train_total=0.266497 val_mse=0.693314 val_pcc=0.5947 val_r2=0.3191
+[2025-12-23 22:17:39] Epoch 15: train_total=0.260355 val_mse=0.702076 val_pcc=0.5828 val_r2=0.3105
+[2025-12-23 22:17:40] Epoch 16: train_total=0.268070 val_mse=0.677077 val_pcc=0.5975 val_r2=0.3350
+[2025-12-23 22:17:41] Epoch 17: train_total=0.261963 val_mse=0.692409 val_pcc=0.5935 val_r2=0.3200
+[2025-12-23 22:17:42] Epoch 18: train_total=0.255594 val_mse=0.706504 val_pcc=0.5909 val_r2=0.3061
+[2025-12-23 22:17:43] Epoch 19: train_total=0.250696 val_mse=0.684184 val_pcc=0.5952 val_r2=0.3281
+[2025-12-23 22:17:43] Epoch 20: train_total=0.238558 val_mse=0.688965 val_pcc=0.5956 val_r2=0.3234
+[2025-12-23 22:17:44] Epoch 21: train_total=0.241162 val_mse=0.676412 val_pcc=0.6022 val_r2=0.3357
+[2025-12-23 22:17:45] Epoch 22: train_total=0.238708 val_mse=0.671661 val_pcc=0.6057 val_r2=0.3404
+[2025-12-23 22:17:46] Epoch 23: train_total=0.238428 val_mse=0.680317 val_pcc=0.6005 val_r2=0.3319

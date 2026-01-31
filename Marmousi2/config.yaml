@@ -1,0 +1,47 @@
+# 基于深度学习的波阻抗反演配置文件
+# Configuration file for Deep Learning-based Seismic Impedance Inversion
+
+# 数据路径配置
+data:
+  seismic_path: "data/SYNTHETIC.segy"
+  impedance_path: "data/impedance.txt"
+  norm_params_path: "data/norm_params.json"
+  output_dir: "data/output"
+
+# 模型配置
+model:
+  name: "FCN_Inception"
+  input_channels: 1
+  output_channels: 1
+  pool1_factor: 4
+  pool2_factor: 5
+  inception_channels: [64, 128, 256]
+
+# 训练配置
+training:
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  batch_size: 8
+  max_epochs: 120
+  early_stopping_patience: 15
+  gradient_clip_norm: 0.5
+
+# 数据划分配置
+data_split:
+  test_indices: [54, 800, 1500, 2700]
+  validation_size: 675
+  random_state: 42
+
+# 可视化配置
+visualization:
+  figure_size: [18, 6]
+  dpi: 600
+  colormap: "gist_rainbow"
+  percentile_range: [4, 97]
+
+# 评估指标配置
+metrics:
+  - "mse"
+  - "pcc"
+  - "r2"
+  - "mae"

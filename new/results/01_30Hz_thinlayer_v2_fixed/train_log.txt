@@ -1,0 +1,67 @@
+======================================================================
+ThinLayerNet V2 训练 - 30Hz 数据 - 薄层优化版
+======================================================================
+设备: cuda
+
+加载数据...
+数据形状: (100, 10001)
+地震数据: D:\SEISMIC_CODING\zmy_data\01\data\01_30Hz_re.sgy
+阻抗数据: D:\SEISMIC_CODING\zmy_data\01\data\01_30Hz_04.txt
+划分: train=60, val=20, test=20
+模型参数: 7,781,499
+
+开始训练 (Epochs=1→500)...
+----------------------------------------------------------------------------------------------------
+Epoch   1 | loss=1.0215 [mse=0.9588 grad=0.0099] | val_pcc=0.1626 val_r2=0.0233 | thin_pcc=-0.0788 thin_f1=0.0026 sep=0.8634
+Epoch   2 | loss=0.6723 [mse=0.6068 grad=0.0077] | val_pcc=0.7511 val_r2=0.4928 | thin_pcc=0.1496 thin_f1=0.0027 sep=0.8798
+Epoch   3 | loss=0.5772 [mse=0.5084 grad=0.0066] | val_pcc=0.7730 val_r2=0.5243 | thin_pcc=0.1650 thin_f1=0.0023 sep=0.9190
+Epoch   4 | loss=0.5272 [mse=0.4745 grad=0.0058] | val_pcc=0.7922 val_r2=0.5046 | thin_pcc=0.1679 thin_f1=0.0023 sep=0.9416
+Epoch   5 | loss=0.5026 [mse=0.4424 grad=0.0055] | val_pcc=0.8581 val_r2=0.3259 | thin_pcc=0.1853 thin_f1=0.0021 sep=0.9450
+Epoch   6 | loss=0.4494 [mse=0.3861 grad=0.0055] | val_pcc=0.8498 val_r2=0.7116 | thin_pcc=0.2323 thin_f1=0.0021 sep=0.9286
+Epoch   7 | loss=0.4824 [mse=0.4310 grad=0.0054] | val_pcc=0.8366 val_r2=0.6779 | thin_pcc=0.1503 thin_f1=0.0022 sep=0.9101
+Epoch   8 | loss=0.4513 [mse=0.4058 grad=0.0054] | val_pcc=0.8600 val_r2=0.4818 | thin_pcc=0.1659 thin_f1=0.0021 sep=0.9550
+Epoch   9 | loss=0.4410 [mse=0.3862 grad=0.0053] | val_pcc=0.8322 val_r2=0.6919 | thin_pcc=0.2168 thin_f1=0.0022 sep=0.9473
+Epoch  10 | loss=0.4246 [mse=0.3650 grad=0.0053] | val_pcc=0.8039 val_r2=0.5523 | thin_pcc=0.1362 thin_f1=0.0021 sep=0.9135
+Epoch  11 | loss=0.3944 [mse=0.3407 grad=0.0054] | val_pcc=0.8684 val_r2=0.7146 | thin_pcc=0.2666 thin_f1=0.0018 sep=0.7887
+Epoch  12 | loss=0.3713 [mse=0.3243 grad=0.0053] | val_pcc=0.8633 val_r2=0.7117 | thin_pcc=0.2132 thin_f1=0.0020 sep=0.9141
+Epoch  13 | loss=0.4018 [mse=0.3531 grad=0.0053] | val_pcc=0.8238 val_r2=0.6541 | thin_pcc=0.1470 thin_f1=0.0022 sep=0.9560
+Epoch  14 | loss=0.3912 [mse=0.3284 grad=0.0052] | val_pcc=0.8503 val_r2=0.7125 | thin_pcc=0.1857 thin_f1=0.0020 sep=0.9258
+Epoch  15 | loss=0.4113 [mse=0.3604 grad=0.0053] | val_pcc=0.8125 val_r2=0.1793 | thin_pcc=0.2158 thin_f1=0.0026 sep=0.9508
+Epoch  16 | loss=0.3980 [mse=0.3352 grad=0.0052] | val_pcc=0.8843 val_r2=0.7776 | thin_pcc=0.2674 thin_f1=0.0023 sep=0.9496
+Epoch  17 | loss=0.3824 [mse=0.3191 grad=0.0053] | val_pcc=0.8491 val_r2=0.7174 | thin_pcc=0.2448 thin_f1=0.0019 sep=0.9240
+Epoch  18 | loss=0.3551 [mse=0.2933 grad=0.0053] | val_pcc=0.8728 val_r2=0.6372 | thin_pcc=0.2332 thin_f1=0.0023 sep=0.9543
+Epoch  19 | loss=0.3700 [mse=0.3152 grad=0.0053] | val_pcc=0.8268 val_r2=0.6618 | thin_pcc=0.2599 thin_f1=0.0022 sep=0.9503
+Epoch  20 | loss=0.2989 [mse=0.2376 grad=0.0052] | val_pcc=0.8726 val_r2=0.7367 | thin_pcc=0.2784 thin_f1=0.0022 sep=0.9460
+Epoch  21 | loss=0.3967 [mse=0.3376 grad=0.0051] | val_pcc=0.8901 val_r2=0.7797 | thin_pcc=0.2680 thin_f1=0.0019 sep=0.9649
+Epoch  22 | loss=0.3526 [mse=0.3050 grad=0.0053] | val_pcc=0.8777 val_r2=0.7624 | thin_pcc=0.2328 thin_f1=0.0021 sep=0.9450
+Epoch  23 | loss=0.3102 [mse=0.2552 grad=0.0052] | val_pcc=0.9014 val_r2=0.8075 | thin_pcc=0.2755 thin_f1=0.0020 sep=0.9443
+Epoch  24 | loss=0.3183 [mse=0.2609 grad=0.0053] | val_pcc=0.8768 val_r2=0.7256 | thin_pcc=0.2718 thin_f1=0.0018 sep=0.8849
+Epoch  25 | loss=0.3060 [mse=0.2540 grad=0.0053] | val_pcc=0.8786 val_r2=0.7703 | thin_pcc=0.3026 thin_f1=0.0018 sep=0.9639
+Epoch  26 | loss=0.3293 [mse=0.2636 grad=0.0052] | val_pcc=0.8735 val_r2=0.7405 | thin_pcc=0.2875 thin_f1=0.0020 sep=0.9566
+Epoch  27 | loss=0.2844 [mse=0.2374 grad=0.0052] | val_pcc=0.8948 val_r2=0.7941 | thin_pcc=0.2856 thin_f1=0.0019 sep=0.9310
+Epoch  28 | loss=0.3070 [mse=0.2528 grad=0.0052] | val_pcc=0.8765 val_r2=0.7662 | thin_pcc=0.2480 thin_f1=0.0020 sep=0.9330
+Epoch  29 | loss=0.2953 [mse=0.2226 grad=0.0051] | val_pcc=0.8350 val_r2=0.6289 | thin_pcc=0.1709 thin_f1=0.0020 sep=0.9699
+Epoch  30 | loss=0.2846 [mse=0.2290 grad=0.0052] | val_pcc=0.8836 val_r2=0.7804 | thin_pcc=0.2722 thin_f1=0.0020 sep=0.9694
+Epoch  31 | loss=0.2474 [mse=0.1885 grad=0.0052] | val_pcc=0.8833 val_r2=0.7716 | thin_pcc=0.2947 thin_f1=0.0020 sep=0.9593
+Epoch  32 | loss=0.2652 [mse=0.2209 grad=0.0052] | val_pcc=0.8746 val_r2=0.7444 | thin_pcc=0.2721 thin_f1=0.0021 sep=0.9618
+Epoch  33 | loss=0.2811 [mse=0.2312 grad=0.0052] | val_pcc=0.8720 val_r2=0.7568 | thin_pcc=0.2748 thin_f1=0.0020 sep=0.9269
+Epoch  34 | loss=0.2344 [mse=0.1783 grad=0.0051] | val_pcc=0.8984 val_r2=0.8045 | thin_pcc=0.2897 thin_f1=0.0020 sep=0.9480
+Epoch  35 | loss=0.2852 [mse=0.2144 grad=0.0052] | val_pcc=0.8794 val_r2=0.7640 | thin_pcc=0.2893 thin_f1=0.0020 sep=0.9465
+Epoch  36 | loss=0.2704 [mse=0.2138 grad=0.0051] | val_pcc=0.8754 val_r2=0.7637 | thin_pcc=0.2472 thin_f1=0.0020 sep=0.9491
+Epoch  37 | loss=0.2391 [mse=0.1959 grad=0.0052] | val_pcc=0.8801 val_r2=0.7663 | thin_pcc=0.2490 thin_f1=0.0021 sep=0.9511
+Epoch  38 | loss=0.2368 [mse=0.1856 grad=0.0051] | val_pcc=0.8771 val_r2=0.7686 | thin_pcc=0.2518 thin_f1=0.0021 sep=0.9632
+Epoch  39 | loss=0.2396 [mse=0.1886 grad=0.0051] | val_pcc=0.8720 val_r2=0.7564 | thin_pcc=0.2565 thin_f1=0.0020 sep=0.9619
+Epoch  40 | loss=0.2428 [mse=0.2023 grad=0.0052] | val_pcc=0.8713 val_r2=0.7537 | thin_pcc=0.2400 thin_f1=0.0020 sep=0.9637
+Epoch  41 | loss=0.2377 [mse=0.1861 grad=0.0052] | val_pcc=0.8635 val_r2=0.7387 | thin_pcc=0.2611 thin_f1=0.0019 sep=0.9573
+Epoch  42 | loss=0.2256 [mse=0.1685 grad=0.0051] | val_pcc=0.8735 val_r2=0.7611 | thin_pcc=0.2485 thin_f1=0.0019 sep=0.9487
+Epoch  43 | loss=0.2369 [mse=0.1815 grad=0.0051] | val_pcc=0.8788 val_r2=0.7684 | thin_pcc=0.2495 thin_f1=0.0020 sep=0.9563
+Epoch  44 | loss=0.2420 [mse=0.1810 grad=0.0052] | val_pcc=0.8762 val_r2=0.7587 | thin_pcc=0.2692 thin_f1=0.0020 sep=0.9571
+Epoch  45 | loss=0.2381 [mse=0.1827 grad=0.0052] | val_pcc=0.8748 val_r2=0.7596 | thin_pcc=0.2607 thin_f1=0.0019 sep=0.9586
+Epoch  46 | loss=0.2222 [mse=0.1606 grad=0.0051] | val_pcc=0.8771 val_r2=0.7643 | thin_pcc=0.2561 thin_f1=0.0019 sep=0.9602
+Epoch  47 | loss=0.2036 [mse=0.1471 grad=0.0051] | val_pcc=0.8802 val_r2=0.7705 | thin_pcc=0.2729 thin_f1=0.0020 sep=0.9593
+Epoch  48 | loss=0.2247 [mse=0.1591 grad=0.0051] | val_pcc=0.8794 val_r2=0.7702 | thin_pcc=0.2650 thin_f1=0.0019 sep=0.9491
+Epoch  49 | loss=0.1902 [mse=0.1356 grad=0.0051] | val_pcc=0.8784 val_r2=0.7674 | thin_pcc=0.2660 thin_f1=0.0020 sep=0.9510
+Epoch  50 | loss=0.1863 [mse=0.1380 grad=0.0051] | val_pcc=0.8769 val_r2=0.7624 | thin_pcc=0.2719 thin_f1=0.0020 sep=0.9471
+Epoch  51 | loss=0.3120 [mse=0.2719 grad=0.0055] | val_pcc=0.8469 val_r2=0.6955 | thin_pcc=0.1693 thin_f1=0.0020 sep=0.8688
+Epoch  52 | loss=0.3894 [mse=0.3295 grad=0.0054] | val_pcc=0.8787 val_r2=0.7633 | thin_pcc=0.2165 thin_f1=0.0019 sep=0.9105
+Epoch  53 | loss=0.3495 [mse=0.2936 grad=0.0053] | val_pcc=0.8671 val_r2=0.7496 | thin_pcc=0.1955 thin_f1=0.0019 sep=0.8845

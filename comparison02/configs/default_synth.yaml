@@ -1,0 +1,20 @@
+# Default config aligned with the paper's Marmousi2 synthetic experiment.
+# Dataset and forward modeling: 30Hz, 0° phase Ricker wavelet; 13601 traces, 2800 samples, dt=1ms fileciteturn2file0L228-L245
+data:
+  path: data/synth_marmousi_like.npz
+
+train:
+  seed: 42
+  epochs: 50          # fileciteturn2file0L263-L269
+  batch_size: 12      # fileciteturn2file0L263-L265
+  lr: 0.001           # fileciteturn2file0L268-L269
+  weight_decay: 1e-7  # fileciteturn2file0L265-L267
+  run_dir: runs/exp1
+
+model:
+  last_relu: true  # paper uses ReLU activation.
+
+eval:
+  batch_size: 24
+  snr_db_list: [35, 25, 15, 5]   # fileciteturn2file0L318-L323
+  shallow_frac: 0.2              # shallow=1/5 fileciteturn2file0L367-L383

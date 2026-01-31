@@ -1,0 +1,30 @@
+run_dir: runs/optimized_v3_advanced
+seed: 1234
+device: cuda
+dataset:
+  path: data/marmousi2_2721_like_l101.npz
+  normalize: true
+epochs: 200
+batch_size: 10
+lr: 0.0002
+n_critic: 5
+# Balanced weights for normalized space
+alpha: 50.0
+beta: 30.0
+lambda_gp: 10.0
+k_large: 31
+k_small: 3
+base_ch_g: 32
+base_ch_d: 16
+wavelet_freq: 30.0
+wavelet_dt: 0.001
+wavelet_dur: 0.128
+save_every: 20
+amp: false
+imp_loss: l1
+grad_loss_weight: 2.0
+loss_in_physical: false
+# Advanced features
+warmup_epochs: 10
+use_ema: true
+ema_decay: 0.999

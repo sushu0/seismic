@@ -1,0 +1,48 @@
+seed: 42
+deterministic: true
+device: cuda
+
+data:
+  data_root: data/01_20Hz
+  norm:
+    seismic: zscore
+    impedance: zscore
+    eps: 1e-6
+
+model:
+  name: unet1d
+  base: 64          # 增加基础通道数: 48 -> 64
+  depth: 6          # 增加网络深度: 5 -> 6
+
+physics:
+  dt_s: 0.01          # 采样间隔 10ms (对应01_20Hz数据)
+  wavelet_f0_hz: 20.0  # 20Hz主频
+  wavelet_length_s: 0.128
+  eps: 1e-6
+
+train:
+  epochs: 300         # 增加训练轮次: 150 -> 300
+  batch_size: 8       # 减小批次大小，增加更新次数
+  batch_size_eval: 16
+  lr: 0.0005          # 降低学习率: 0.001 -> 0.0005
+  weight_decay: 1e-5  # 减少权重衰减: 1e-4 -> 1e-5
+  grad_clip: 1.0      # 更严格的梯度裁剪: 5.0 -> 1.0
+  sup_loss: mse       # 使用MSE损失替代SmoothL1
+  use_unlabeled: false
+  use_teacher: false
+  lambda_phys: 0.1    # 启用物理约束损失
+  lambda_freq: 0.05   # 启用频率域损失
+  lambda_cons: 0.0
+  phys_loss_mode: mse
+  stft_n_fft: 256
+  stft_hop: 64
+  stft_win: 256
+  aug_noise: 0.005    # 减少噪声增强: 0.01 -> 0.005
+  aug_amp: 0.02       # 减少振幅抖动: 0.05 -> 0.02
+  aug_shift: 2        # 减少时移: 5 -> 2
+  ema: 0.99
+
+output:
+  root: results
+  exp_name: 01_20Hz_unet1d_optimized
+  make_plots: true

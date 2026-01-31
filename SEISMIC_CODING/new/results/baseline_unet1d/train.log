@@ -1,0 +1,23 @@
+[2025-12-24 13:20:01] Using device: cpu
+[2025-12-24 13:20:01] Config: {'seed': 42, 'deterministic': True, 'device': 'cuda', 'data': {'data_root': 'data/toy', 'norm': {'seismic': 'zscore', 'impedance': 'zscore', 'eps': 1e-06}}, 'model': {'name': 'unet1d', 'base': 32, 'depth': 4}, 'physics': {'dt_s': 0.002, 'wavelet_f0_hz': 30.0, 'wavelet_length_s': 0.128, 'eps': 1e-06}, 'train': {'epochs': 20, 'batch_size': 8, 'batch_size_eval': 16, 'lr': 0.001, 'weight_decay': 0.0001, 'grad_clip': 5.0, 'sup_loss': 'smoothl1', 'use_unlabeled': False, 'use_teacher': False, 'lambda_phys': 0.0, 'lambda_freq': 0.0, 'lambda_cons': 0.0, 'phys_loss_mode': 'mse', 'stft_n_fft': 256, 'stft_hop': 64, 'stft_win': 256, 'aug_noise': 0.02, 'aug_amp': 0.1, 'aug_shift': 8, 'ema': 0.99}, 'output': {'root': 'results', 'exp_name': 'baseline_unet1d', 'make_plots': True}}
+[2025-12-24 13:20:07] Epoch 1: train_total=0.467621 val_mse=1.084805 val_pcc=0.1106 val_r2=-0.0654
+[2025-12-24 13:20:11] Epoch 2: train_total=0.426283 val_mse=1.092804 val_pcc=0.1312 val_r2=-0.0733
+[2025-12-24 13:20:12] Epoch 3: train_total=0.386437 val_mse=1.082537 val_pcc=0.2598 val_r2=-0.0632
+[2025-12-24 13:20:14] Epoch 4: train_total=0.337351 val_mse=1.269568 val_pcc=0.4785 val_r2=-0.2469
+[2025-12-24 13:20:15] Epoch 5: train_total=0.272690 val_mse=1.733939 val_pcc=0.4367 val_r2=-0.7029
+[2025-12-24 13:20:17] Epoch 6: train_total=0.205102 val_mse=0.960722 val_pcc=0.4920 val_r2=0.0565
+[2025-12-24 13:20:18] Epoch 7: train_total=0.150858 val_mse=1.218219 val_pcc=0.3458 val_r2=-0.1964
+[2025-12-24 13:20:20] Epoch 8: train_total=0.116495 val_mse=1.315349 val_pcc=0.3951 val_r2=-0.2918
+[2025-12-24 13:20:22] Epoch 9: train_total=0.085688 val_mse=1.224573 val_pcc=0.4671 val_r2=-0.2027
+[2025-12-24 13:20:23] Epoch 10: train_total=0.098265 val_mse=1.033129 val_pcc=0.4662 val_r2=-0.0146
+[2025-12-24 13:20:25] Epoch 11: train_total=0.077309 val_mse=1.046739 val_pcc=0.4261 val_r2=-0.0280
+[2025-12-24 13:20:27] Epoch 12: train_total=0.050448 val_mse=0.917923 val_pcc=0.4585 val_r2=0.0985
+[2025-12-24 13:20:28] Epoch 13: train_total=0.044423 val_mse=0.903438 val_pcc=0.4407 val_r2=0.1127
+[2025-12-24 13:20:30] Epoch 14: train_total=0.053961 val_mse=0.883084 val_pcc=0.4291 val_r2=0.1327
+[2025-12-24 13:20:31] Epoch 15: train_total=0.050583 val_mse=0.871587 val_pcc=0.4173 val_r2=0.1440
+[2025-12-24 13:20:33] Epoch 16: train_total=0.038023 val_mse=0.854834 val_pcc=0.4293 val_r2=0.1605
+[2025-12-24 13:20:35] Epoch 17: train_total=0.044209 val_mse=0.855403 val_pcc=0.4304 val_r2=0.1599
+[2025-12-24 13:20:37] Epoch 18: train_total=0.052983 val_mse=0.846308 val_pcc=0.4385 val_r2=0.1688
+[2025-12-24 13:20:38] Epoch 19: train_total=0.044315 val_mse=0.851126 val_pcc=0.4337 val_r2=0.1641
+[2025-12-24 13:20:40] Epoch 20: train_total=0.040368 val_mse=0.852413 val_pcc=0.4336 val_r2=0.1628
+[2025-12-24 13:20:44] Done. test_metrics={'MSE': 0.8884163629745816, 'PCC': 0.4695457134714873, 'R2': 0.20558475752756789}

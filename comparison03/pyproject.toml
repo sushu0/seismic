@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ss-gan-impedance"
+version = "0.1.0"
+description = "Semi-supervised GAN (WGAN-GP) for seismic impedance inversion (paper-aligned core)."
+requires-python = ">=3.9"
+dependencies = ["torch","numpy","pyyaml","tqdm","matplotlib"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

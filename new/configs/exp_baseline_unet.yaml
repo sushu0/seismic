@@ -1,0 +1,43 @@
+seed: 42
+deterministic: true
+device: cuda
+data:
+  data_root: data/toy
+  norm:
+    seismic: zscore
+    impedance: zscore
+    eps: 1e-6
+model:
+  name: unet1d
+  base: 32
+  depth: 4
+physics:
+  dt_s: 0.002
+  wavelet_f0_hz: 30.0
+  wavelet_length_s: 0.128
+  eps: 1e-6
+train:
+  epochs: 20
+  batch_size: 8
+  batch_size_eval: 16
+  lr: 0.001
+  weight_decay: 1e-4
+  grad_clip: 5.0
+  sup_loss: smoothl1
+  use_unlabeled: false
+  use_teacher: false
+  lambda_phys: 0.0
+  lambda_freq: 0.0
+  lambda_cons: 0.0
+  phys_loss_mode: mse
+  stft_n_fft: 256
+  stft_hop: 64
+  stft_win: 256
+  aug_noise: 0.02
+  aug_amp: 0.1
+  aug_shift: 8
+  ema: 0.99
+output:
+  root: results
+  exp_name: baseline_unet1d
+  make_plots: true

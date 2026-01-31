@@ -1,0 +1,32 @@
+======================================================================
+ThinLayerNet V2 训练 - 30Hz 数据 - 薄层优化版
+======================================================================
+设备: cuda
+
+加载数据...
+数据形状: (100, 10001)
+地震数据: D:\SEISMIC_CODING\zmy_data\01\data\01_30Hz_re.sgy
+阻抗数据: D:\SEISMIC_CODING\zmy_data\01\data\01_30Hz_04.txt
+划分: train=60, val=20, test=20
+模型参数: 7,781,499
+
+开始训练 (Epochs=500)...
+----------------------------------------------------------------------------------------------------
+Epoch   1 | loss=1.0408 [mse=0.9757 grad=0.0111] | val_pcc=0.1686 val_r2=0.0217 | thin_pcc=-0.0709 thin_f1=0.0025 sep=0.8661
+Epoch   2 | loss=0.8748 [mse=0.8004 grad=0.0084] | val_pcc=0.5376 val_r2=0.2548 | thin_pcc=0.0405 thin_f1=0.0022 sep=0.8770
+Epoch   3 | loss=0.6644 [mse=0.6117 grad=0.0072] | val_pcc=0.5711 val_r2=-0.7897 | thin_pcc=0.1415 thin_f1=0.0023 sep=0.9346
+Epoch   4 | loss=0.4983 [mse=0.4427 grad=0.0064] | val_pcc=0.7802 val_r2=0.5136 | thin_pcc=0.1225 thin_f1=0.0021 sep=0.9537
+Epoch   5 | loss=0.5241 [mse=0.4636 grad=0.0062] | val_pcc=0.8136 val_r2=0.2163 | thin_pcc=0.1543 thin_f1=0.0021 sep=0.9217
+Epoch   6 | loss=0.4548 [mse=0.4015 grad=0.0062] | val_pcc=0.8157 val_r2=0.6370 | thin_pcc=0.1897 thin_f1=0.0020 sep=0.9391
+Epoch   7 | loss=0.4838 [mse=0.4192 grad=0.0071] | val_pcc=0.8320 val_r2=0.6908 | thin_pcc=0.1927 thin_f1=0.0022 sep=0.9242
+Epoch   8 | loss=0.4125 [mse=0.3611 grad=0.0058] | val_pcc=0.7468 val_r2=0.2382 | thin_pcc=0.1873 thin_f1=0.0021 sep=0.9173
+Epoch   9 | loss=0.4183 [mse=0.3630 grad=0.0057] | val_pcc=0.8492 val_r2=0.7210 | thin_pcc=0.1566 thin_f1=0.0023 sep=0.9480
+Epoch  10 | loss=0.4238 [mse=0.3633 grad=0.0055] | val_pcc=0.8558 val_r2=0.6545 | thin_pcc=0.2218 thin_f1=0.0021 sep=0.9489
+Epoch  11 | loss=0.4095 [mse=0.3547 grad=0.0055] | val_pcc=0.7729 val_r2=0.4230 | thin_pcc=0.2091 thin_f1=0.0021 sep=0.8037
+Epoch  12 | loss=0.3693 [mse=0.3119 grad=0.0055] | val_pcc=0.6996 val_r2=-0.2562 | thin_pcc=0.1030 thin_f1=0.0024 sep=0.9193
+Epoch  13 | loss=0.4087 [mse=0.3502 grad=0.0056] | val_pcc=0.8467 val_r2=0.5507 | thin_pcc=0.2228 thin_f1=0.0022 sep=0.9167
+Epoch  14 | loss=0.3958 [mse=0.3315 grad=0.0058] | val_pcc=0.8907 val_r2=0.7883 | thin_pcc=0.2415 thin_f1=0.0021 sep=0.8467
+Epoch  15 | loss=0.3605 [mse=0.3038 grad=0.0055] | val_pcc=0.8682 val_r2=0.7131 | thin_pcc=0.1800 thin_f1=0.0022 sep=0.9596
+Epoch  16 | loss=0.3670 [mse=0.3084 grad=0.0054] | val_pcc=0.8937 val_r2=0.7560 | thin_pcc=0.2522 thin_f1=0.0019 sep=0.8942
+Epoch  17 | loss=0.3694 [mse=0.3143 grad=0.0055] | val_pcc=0.8482 val_r2=0.7189 | thin_pcc=0.2376 thin_f1=0.0022 sep=0.9404
+Epoch  18 | loss=0.3764 [mse=0.3229 grad=0.0054] | val_pcc=0.8767 val_r2=0.7685 | thin_pcc=0.2466 thin_f1=0.0017 sep=0.7934

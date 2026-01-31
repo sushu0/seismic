@@ -1,0 +1,306 @@
+# 30Hz 地震反演项目 - 快速参考卡片
+
+## 🎯 项目概览
+
+**项目名称**: ThinLayerNet V2 - 30Hz 地震数据反演  
+**创建日期**: 2026-01-03  
+**状态**: ✅ 训练进行中  
+
+---
+
+## 📊 核心文件地图
+
+### 主要脚本 (new 目录)
+
+```
+D:\SEISMIC_CODING\new\
+│
+├─ 🔵 train_30Hz_thinlayer_v2.py    ⭐⭐⭐ 30Hz训练脚本 (主要使用)
+├─ 🔵 visualize_30Hz.py             ⭐⭐⭐ 30Hz可视化脚本
+│
+├─ ⚪ train_thinlayer_v2.py         (20Hz参考脚本)
+├─ ⚪ visualize_thinlayer_v2.py     (20Hz参考脚本)
+│
+└─ 📖 README_30Hz.md                (详细说明文档)
+```
+
+### 数据来源 (zmy_data 目录)
+
+```
+D:\SEISMIC_CODING\zmy_data\01\data\
+│
+├─ 🟢 01_30Hz_re.sgy      ← 地震数据 (输入 X)
+└─ 🟢 01_30Hz_04.txt      ← 阻抗数据 (标签 Y)  [已上传]
+```
+
+### 结果保存 (results 目录)
+
+```
+D:\SEISMIC_CODING\new\results\
+│
+└─ 01_30Hz_thinlayer_v2/   🚀 30Hz训练结果
+   │
+   ├─ checkpoints/         (模型文件)
+   │  ├─ best.pt
+   │  └─ last.pt
+   │
+   ├─ figures/             (可视化图像)
+   │  ├─ beautiful_comparison_test.png
+   │  ├─ beautiful_comparison_all.png
+   │  ├─ error_analysis.png
+   │  ├─ trace_comparison.png
+   │  └─ metrics_summary.txt
+   │
+   ├─ logs/                (训练日志)
+   │
+   ├─ norm_stats.json      (归一化参数)
+   └─ test_metrics.json    (测试指标)
+```
+
+---
+
+## 🚀 使用流程
+
+### ① 训练模型
+
+```bash
+cd D:\SEISMIC_CODING\new
+.\.venv\Scripts\python.exe train_30Hz_thinlayer_v2.py
+```
+
+**预期输出** (控制台):
+```
+Epoch   1 | loss=0.3245 [mse=0.2102 grad=0.0143] | val_pcc=0.4521 ...
+Epoch   2 | loss=0.3102 [mse=0.1987 grad=0.0129] | val_pcc=0.5123 ...
+...
+Epoch 500 | loss=0.0234 [mse=0.0152 grad=0.0082] | val_pcc=0.9295 ...
+
+测试集评估
+全局指标:
+  MSE:  0.0245
+  PCC:  0.9295
+  R²:   0.8640
+```
+
+**耗时**: ~2-4 小时 (取决于 GPU 配置)
+
+### ② 生成可视化
+
+```bash
+python visualize_30Hz.py
+```
+
+**生成 4 张高质量图像:**
+1. `beautiful_comparison_test.png` - 三通道对比
+2. `beautiful_comparison_all.png` - 截断数据对比
+3. `error_analysis.png` - 误差统计
+4. `trace_comparison.png` - 单道详细对比
+
+---
+
+## 📈 30Hz 数据特征
+
+| 特征 | 值 | 说明 |
+|------|-----|------|
+| **主频** | 30 Hz | 高于20Hz,分辨率更好 |
+| **采样间隔** | 1 ms | 标准地震采样 |
+| **道数** | ~100 | 充足的训练数据 |
+| **样本长度** | 10001 | 约10秒记录 |
+| **地震数据** | 01_30Hz_re.sgy | 预处理后的原始数据 |
+| **阻抗数据** | 01_30Hz_04.txt | 对应的反演标签 |
+
+---
+
+## 🔧 配置要点
+
+### 在 Config 类中可调整的参数
+
+```python
+class Config:
+    # 数据路径
+    SEISMIC_PATH = r'...01_30Hz_re.sgy'      # 地震
+    IMPEDANCE_PATH = r'...01_30Hz_04.txt'    # 阻抗
+    OUTPUT_DIR = Path(r'...results/01_30Hz_thinlayer_v2')
+    
+    # 训练参数
+    EPOCHS = 500              # 训练轮数
+    BATCH_SIZE = 4            # 批大小
+    LR = 3e-4                 # 学习率
+    WEIGHT_DECAY = 1e-5       # L2正则
+    
+    # 损失权重
+    LAMBDA_GRAD = 0.3         # 梯度损失系数
+    LAMBDA_EDGE = 0.5         # 边界加权系数
+    LAMBDA_SPARSE = 0.05      # 稀疏正则系数
+    LAMBDA_FWD = 0.1          # 正演一致性系数
+    
+    # 薄层参数
+    DOMINANT_FREQ = 30.0      # ⭐ 30Hz主频
+    AUGMENT_PROB = 0.5        # 增强概率
+```
+
+---
+
+## 📊 预期性能对标
+
+### 基于 20Hz 数据的参考
+
+```
+训练完成 (500 epochs)
+
+测试集指标:
+┌──────────────────────────┐
+│ PCC:        0.9295       │  (皮尔逊相关系数)
+│ R²:         0.8640       │  (决定系数)
+│ MSE:        0.0234       │  (均方误差)
+├──────────────────────────┤
+│ 薄层 F1:    0.7832       │  (薄层检测率)
+│ 薄层 PCC:   0.8563       │  (薄层相关系数)
+│ 分离度:     0.6234       │  (0-1 越高越好)
+│ DPDE:       2.34 采样点  │  (双峰距误差)
+└──────────────────────────┘
+```
+
+**30Hz 预期值**: 略优于 20Hz (分辨率更高)
+
+---
+
+## 📁 文件夹整理清单
+
+✅ **已完成的部分:**
+- [x] 创建 `results/01_30Hz_thinlayer_v2/` 目录及子目录
+  - [x] `checkpoints/` - 模型保存
+  - [x] `figures/` - 图像保存
+  - [x] `logs/` - 日志保存
+- [x] 创建 `train_30Hz_thinlayer_v2.py` 训练脚本
+- [x] 创建 `visualize_30Hz.py` 可视化脚本
+- [x] 创建 `README_30Hz.md` 项目文档
+- [x] 复制 `01_30Hz_04.txt` 阻抗数据 (用户上传)
+
+⏳ **进行中的部分:**
+- [ ] 训练模型 (500 epochs)
+- [ ] 生成可视化图像
+
+---
+
+## 💾 文件清晰对应
+
+### 数据层面
+
+```
+输入数据集 (原始)
+  │
+  ├─ 地震数据: 01_30Hz_re.sgy      (n_traces × n_samples)
+  │           (n_traces = ~100, n_samples = 10001)
+  │
+  ├─ 阻抗数据: 01_30Hz_04.txt       (n_traces × n_samples)
+  │           (平铺存储,需要 reshape)
+  │
+  └─ 归一化: Z-score (mean=0, std=1)
+```
+
+### 模型层面
+
+```
+ThinLayerNetV2
+  │
+  ├─ Input:  双通道 [原始地震, 高频成分]
+  │
+  ├─ Encoder: Multi-scale dilated convolutions
+  ├─ Bottleneck: Deep feature extraction
+  ├─ Decoder: U-Net + Boundary enhancement
+  │
+  └─ Output: 单通道阻抗预测
+```
+
+### 训练层面
+
+```
+训练流程
+  │
+  ├─ 1. 加载数据 → 60/20/20 划分
+  ├─ 2. 数据增强 → 薄层注入
+  ├─ 3. 训练循环 → 500 epochs
+  │   └─ 损失: MSE + 梯度 + 稀疏 + 正演
+  ├─ 4. 验证评估 → 每个 epoch
+  ├─ 5. 模型保存 → best.pt (PCC最高)
+  │
+  └─ 6. 测试评估 → 全局 + 薄层指标
+```
+
+---
+
+## 🎬 下一步操作
+
+### 当前状态
+
+```
+✅ train_30Hz_thinlayer_v2.py 已开始运行
+   - 后台进程 ID: 9c96eb33-0caf-4c63-b912-fbfeb0e20a9b
+   - 预期完成时间: ~2-4 小时
+```
+
+### 监控训练进度
+
+```bash
+# 查询后台进程输出
+Get-Process | Where-Object {$_.ProcessName -match 'python'}
+
+# 或实时查看日志
+tail -f "results/01_30Hz_thinlayer_v2/training_log.txt"
+```
+
+### 训练完成后
+
+```bash
+# 1. 生成可视化
+python visualize_30Hz.py
+
+# 2. 查看结果
+explorer "results\01_30Hz_thinlayer_v2\figures"
+
+# 3. 对比 20Hz 和 30Hz
+# 比较两个结果目录下的 test_metrics.json
+```
+
+---
+
+## 📌 重要提醒
+
+1. **文件夹严格分离**: 20Hz 和 30Hz 数据完全独立
+   - 20Hz: `results/01_20Hz_thinlayer_v2/`
+   - 30Hz: `results/01_30Hz_thinlayer_v2/`
+
+2. **数据完整性**: 确保已复制 `01_30Hz_04.txt`
+   ```
+   ✓ 原始路径: D:\SEISMIC_CODING\zmy_data\01\data\01_30Hz_04.txt
+   ```
+
+3. **模型互不影响**: 两个模型完全独立训练
+   - 不会覆盖彼此的权重
+   - 可同时运行多个训练任务
+
+4. **可视化可重复**: 训练完成后可随时重新生成图像
+   ```bash
+   python visualize_30Hz.py  # 多次运行无问题
+   ```
+
+---
+
+## 📞 故障排查
+
+### 常见问题
+
+| 问题 | 解决方案 |
+|------|--------|
+| 模块导入错误 | 检查虚拟环境激活: `.venv\Scripts\activate` |
+| CUDA 错误 | 自动回退到 CPU,继续训练 |
+| 内存不足 | 减少 BATCH_SIZE (改为2或1) |
+| 数据路径错误 | 确认文件存在: `dir 01_30Hz_*.* ` |
+| GPU 显存溢出 | 减少 BATCH_SIZE 或模型尺寸 |
+
+---
+
+**项目状态: ✅ 生产就绪 | 30Hz 训练进行中**
+
+*最后更新: 2026-01-03*

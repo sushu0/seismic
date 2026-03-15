@@ -1,0 +1,22 @@
+{
+  "sgy": "d:\\SEISMIC_CODING\\new\\0908_Q1JB_PSTMR_ChengGuo-2500-6000.Sgy",
+  "out": "new\\sgy_inversion_v9",
+  "train_traces": 12000,
+  "infer_traces": 5000,
+  "epochs": 52,
+  "batch_size": 12,
+  "lr": 0.0002,
+  "weight_decay": 0.0001,
+  "patience": 20,
+  "resume": "new\\sgy_inversion_v8\\checkpoints\\latest.pt",
+  "device": "cuda",
+  "seed": 42,
+  "highpass_cutoff": 12.0,
+  "wavelet_f0": 25.0,
+  "prior_batch_size": 32,
+  "infer_batch_size": 16,
+  "structure_weight": 0.08,
+  "structure_l1_weight": 0.04,
+  "structure_bg_weight": 0.02,
+  "reset_history_on_resume": true
+}

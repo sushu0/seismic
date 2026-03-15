@@ -1,0 +1,12 @@
+{
+  "name": "v9_balanced_hybrid",
+  "source_v8": "sgy_inversion_v8/impedance_pred_final.npy",
+  "source_v9": "sgy_inversion_v9/impedance_pred_final.npy",
+  "log_blend_alpha_v9": 0.06,
+  "detail_scale": 1.06,
+  "mean_trace_pcc": 0.9647320508956909,
+  "impedance_mean": 7124199.5,
+  "impedance_std": 300295.90625,
+  "mae_ratio_vs_prior": 0.035529110580682755,
+  "edge_alignment": 0.32174524664878845
+}

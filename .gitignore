@@ -83,3 +83,21 @@ Thumbs.db
 
 # Git nested repo
 new/real_data_inference/.git/
+
+# Local archives
+new.rar
+
+# SGY inversion experiment outputs (keep only selected summaries via forced add)
+new/sgy_inversion_output/
+new/sgy_inversion_v2/
+new/sgy_inversion_v3/
+new/sgy_inversion_v4/
+new/sgy_inversion_v5/
+new/sgy_inversion_v6/
+new/sgy_inversion_v7/
+new/sgy_inversion_v8/
+new/sgy_inversion_v8_latest_eval/
+new/sgy_inversion_v8_smoke/
+new/sgy_inversion_v8_smoke2/
+new/sgy_inversion_v9/
+new/sgy_inversion_v10/

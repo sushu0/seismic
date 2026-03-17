@@ -266,6 +266,45 @@ def stft_logmag_l1_scale_invariant(
         return F.l1_loss(torch.log(torch.abs(pred_stft) + 1e-6), torch.log(torch.abs(target_stft) + 1e-6))
 
 
+def seismic_display_map_torch(seismic: torch.Tensor) -> torch.Tensor:
+    with torch.amp.autocast(device_type=seismic.device.type, enabled=False):
+        seismic_f = seismic.float()
+        scale = torch.quantile(torch.abs(seismic_f).flatten(1), 0.99, dim=1, keepdim=True).view(-1, 1, 1)
+        return torch.tanh(seismic_f / (scale + 1e-6))
+
+
+def impedance_display_map_torch(log_impedance: torch.Tensor) -> torch.Tensor:
+    with torch.amp.autocast(device_type=log_impedance.device.type, enabled=False):
+        log_f = log_impedance.float()
+        centered = log_f - log_f.mean(dim=-1, keepdim=True)
+        scale = torch.quantile(torch.abs(centered).flatten(1), 0.99, dim=1, keepdim=True).view(-1, 1, 1)
+        return torch.tanh(centered / (scale + 1e-6))
+
+
+def display_similarity_losses(
+    log_pred: torch.Tensor,
+    seismic: torch.Tensor,
+    event_guide: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    seismic_disp = seismic_display_map_torch(seismic)
+    imp_disp = impedance_display_map_torch(log_pred)
+    weight = 0.35 + 0.65 * event_guide.detach()
+    loss_l1 = torch.mean(weight * torch.abs(seismic_disp - imp_disp))
+    grad_weight = weight[..., 1:]
+    loss_grad = torch.mean(grad_weight * torch.abs(torch.diff(seismic_disp, dim=-1) - torch.diff(imp_disp, dim=-1)))
+    w = weight.float()
+    obs_mean = torch.sum(w * seismic_disp, dim=-1, keepdim=True) / (torch.sum(w, dim=-1, keepdim=True) + 1e-6)
+    imp_mean = torch.sum(w * imp_disp, dim=-1, keepdim=True) / (torch.sum(w, dim=-1, keepdim=True) + 1e-6)
+    obs_center = seismic_disp - obs_mean
+    imp_center = imp_disp - imp_mean
+    cov = torch.sum(w * obs_center * imp_center, dim=-1)
+    obs_var = torch.sum(w * obs_center.square(), dim=-1)
+    imp_var = torch.sum(w * imp_center.square(), dim=-1)
+    corr = cov / torch.sqrt(obs_var * imp_var + 1e-6)
+    loss_corr = torch.mean(1.0 - corr.clamp(-1.0, 1.0))
+    return loss_l1, loss_grad, loss_corr
+
+
 def residual_guide(observed: torch.Tensor, synth_aligned: torch.Tensor) -> torch.Tensor:
     guide = torch.abs(observed - synth_aligned)
     guide = F.avg_pool1d(guide, kernel_size=11, stride=1, padding=5)
@@ -282,6 +321,12 @@ def compute_reflectivity_from_log(log_impedance: torch.Tensor, eps: float = 1e-6
     reflectivity = (impedance - prev) / (impedance + prev + eps)
     reflectivity[..., 0] = 0.0
     return reflectivity
+
+
+def ramp_weight(epoch: int, start: int, duration: int) -> float:
+    if duration <= 0:
+        return 1.0 if epoch >= start else 0.0
+    return float(max(0.0, min(1.0, (float(epoch) - float(start)) / float(duration))))
 
 
 def lateral_delta_block_loss(
@@ -308,6 +353,42 @@ def reflectivity_floor_block_loss(
     pred_energy = (event_mask_blocks * torch.abs(reflectivity_blocks)).sum(dim=-1) / (event_mask_blocks.sum(dim=-1) + 1e-6)
     base_energy = (event_mask_blocks * torch.abs(base_reflectivity)).sum(dim=-1) / (event_mask_blocks.sum(dim=-1) + 1e-6)
     return F.relu(floor_ratio * base_energy - pred_energy).mean()
+
+
+def cross_gradient_block_loss(
+    log_pred_blocks: torch.Tensor,
+    seismic_hp_blocks: torch.Tensor,
+    event_mask_blocks: torch.Tensor,
+    beta: float,
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    if log_pred_blocks.shape[1] < 2 or log_pred_blocks.shape[-1] < 2:
+        return torch.zeros((), device=log_pred_blocks.device, dtype=log_pred_blocks.dtype)
+    with torch.amp.autocast(device_type=log_pred_blocks.device.type, enabled=False):
+        log_pred = log_pred_blocks.float().squeeze(2)
+        seismic_hp = seismic_hp_blocks.float().squeeze(2)
+        event_mask = event_mask_blocks.float().squeeze(2)
+
+        dZ_dx = torch.diff(log_pred, dim=1)
+        dZ_dx = torch.cat([dZ_dx, dZ_dx[:, -1:, :]], dim=1)
+        dZ_dt = torch.diff(log_pred, dim=2)
+        dZ_dt = torch.cat([dZ_dt, dZ_dt[:, :, -1:]], dim=2)
+
+        dS_dx = torch.diff(seismic_hp, dim=1)
+        dS_dx = torch.cat([dS_dx, dS_dx[:, -1:, :]], dim=1)
+        dS_dt = torch.diff(seismic_hp, dim=2)
+        dS_dt = torch.cat([dS_dt, dS_dt[:, :, -1:]], dim=2)
+
+        cg = dZ_dx * dS_dt - dZ_dt * dS_dx
+
+        event_norm = event_mask / (event_mask.amax(dim=(1, 2), keepdim=True) + eps)
+        event_norm = event_norm.detach()
+
+        abs_dS_dx = torch.abs(dS_dx).detach()
+        scale = torch.quantile(abs_dS_dx.flatten(1), 0.95, dim=1, keepdim=True).view(-1, 1, 1)
+        w_fault_relax = torch.exp(-beta * abs_dS_dx / (scale + eps))
+        weight = event_norm * w_fault_relax
+        return torch.mean(weight * torch.abs(cg))
 
 
 def wavelet_regularization(current_wavelet: torch.Tensor, initial_wavelet: torch.Tensor) -> torch.Tensor:
@@ -364,7 +445,7 @@ def set_wavelet_trainability(
     freeze_epochs: int,
     experiment_mode: str,
 ) -> bool:
-    train_phase = experiment_mode in {"core_v11", "core_v11_tuned", "core_v12_tuned"} and epoch > freeze_epochs
+    train_phase = experiment_mode in {"core_v11", "core_v11_tuned", "core_v12_tuned", "core_v12_refine"} and epoch > freeze_epochs
     wavelet_module.phi.requires_grad_(train_phase)
     wavelet_module.log_f_scale.requires_grad_(False)
     wavelet_module.gain.requires_grad_(False)
@@ -387,7 +468,7 @@ def infer_log_impedance(
         raw_delta = model(batch_feat)
         bounded_delta = 0.35 * torch.tanh(delta_smoother(raw_delta))
         log_pred = batch_base + bounded_delta
-        outputs.append(log_pred.squeeze(1).cpu().numpy().astype(np.float32))
+        outputs.append(log_pred.squeeze(1).detach().cpu().numpy().astype(np.float32))
     return np.concatenate(outputs, axis=0)
 
 
@@ -442,11 +523,14 @@ def compute_v11_losses(
     loss_wavelet_reg = wavelet_regularization(wavelet, wavelet_module.initial_wavelet)
     loss_grad = gradient_consistency_loss(synth.float(), seismic.float())
     loss_stft_legacy = stft_logmag_l1(synth.float(), seismic.float())
+    loss_display_l1, loss_display_grad, loss_display_corr = display_similarity_losses(log_pred, seismic, event_guide)
 
     data_warmup_epochs = getattr(args, "data_warmup_epochs", 10)
     struct_warmup_epochs = getattr(args, "struct_warmup_epochs", 12)
+    display_warmup_epochs = getattr(args, "display_warmup_epochs", 6)
     w_data = min(1.0, float(epoch) / float(max(data_warmup_epochs, 1)))
     w_struct = min(1.0, float(schedule_epoch) / float(max(struct_warmup_epochs, 1)))
+    w_display = min(1.0, float(schedule_epoch) / float(max(display_warmup_epochs, 1)))
     if args.experiment_mode == "amp_only":
         loss_corr = multiscale_pearson_loss(synth, seismic)
         total = (
@@ -480,6 +564,10 @@ def compute_v11_losses(
             "wavelet_reg": torch.zeros_like(loss_struct_corr),
             "w_data": torch.tensor(w_data, device=features.device),
             "w_struct": torch.tensor(w_struct, device=features.device),
+            "display_l1": torch.zeros_like(loss_struct_corr),
+            "display_grad": torch.zeros_like(loss_struct_corr),
+            "display_corr": torch.zeros_like(loss_struct_corr),
+            "w_display": torch.zeros_like(loss_struct_corr),
         }
     elif args.experiment_mode == "core_v11":
         loss_lncc = multiscale_lncc_loss(synth, seismic, args.lncc_windows)
@@ -517,6 +605,62 @@ def compute_v11_losses(
             "wavelet_reg": loss_wavelet_reg,
             "w_data": torch.tensor(w_data, device=features.device),
             "w_struct": torch.tensor(w_struct, device=features.device),
+            "display_l1": torch.zeros_like(loss_struct_corr),
+            "display_grad": torch.zeros_like(loss_struct_corr),
+            "display_corr": torch.zeros_like(loss_struct_corr),
+            "w_display": torch.zeros_like(loss_struct_corr),
+        }
+    elif args.experiment_mode == "core_v11_similarity":
+        loss_corr = multiscale_pearson_loss(synth, seismic)
+        loss_lncc = multiscale_lncc_loss(synth, seismic, args.lncc_windows)
+        loss_stft = stft_logmag_l1_scale_invariant(synth_aligned, seismic)
+        total = (
+            w_data * (
+                args.tuned_pcc_weight * loss_corr
+                + args.tuned_lncc_weight * loss_lncc
+                + args.amp_loss_weight * amp_loss
+                + args.tuned_stft_weight * loss_stft
+            )
+            + 0.20 * loss_prior
+            + w_struct * (
+                args.tuned_structure_corr_weight * loss_struct_corr
+                + args.tuned_structure_l1_weight * loss_struct_l1
+                + args.tuned_structure_bg_weight * loss_struct_bg
+                + args.tuned_structure_gain_weight * loss_struct_gain
+                + args.tuned_variance_floor_weight * loss_var_floor
+                + args.tuned_reflectivity_fp_weight * loss_refl_fp
+            )
+            + w_display * (
+                args.display_l1_weight * loss_display_l1
+                + args.display_grad_weight * loss_display_grad
+                + args.display_corr_weight * loss_display_corr
+            )
+            + 0.02 * loss_tv
+            + 0.02 * loss_delta
+            + args.tuned_wavelet_reg_weight * loss_wavelet_reg
+        )
+        stats = {
+            "corr": loss_corr,
+            "lncc": loss_lncc,
+            "amp": amp_loss,
+            "stft": loss_stft,
+            "grad": loss_grad,
+            "prior": loss_prior,
+            "tv": loss_tv,
+            "delta": loss_delta,
+            "struct_corr": loss_struct_corr,
+            "struct_l1": loss_struct_l1,
+            "struct_bg": loss_struct_bg,
+            "struct_gain": loss_struct_gain,
+            "var_floor": loss_var_floor,
+            "refl_fp": loss_refl_fp,
+            "wavelet_reg": loss_wavelet_reg,
+            "w_data": torch.tensor(w_data, device=features.device),
+            "w_struct": torch.tensor(w_struct, device=features.device),
+            "display_l1": loss_display_l1,
+            "display_grad": loss_display_grad,
+            "display_corr": loss_display_corr,
+            "w_display": torch.tensor(w_display, device=features.device),
         }
     else:
         loss_corr = multiscale_pearson_loss(synth, seismic)
@@ -560,6 +704,10 @@ def compute_v11_losses(
             "wavelet_reg": loss_wavelet_reg,
             "w_data": torch.tensor(w_data, device=features.device),
             "w_struct": torch.tensor(w_struct, device=features.device),
+            "display_l1": torch.zeros_like(loss_struct_corr),
+            "display_grad": torch.zeros_like(loss_struct_corr),
+            "display_corr": torch.zeros_like(loss_struct_corr),
+            "w_display": torch.zeros_like(loss_struct_corr),
         }
     stats["total"] = total
     aux = {
@@ -592,10 +740,16 @@ def init_epoch_stats() -> dict:
         "refl_fp": 0.0,
         "lat_delta": 0.0,
         "refl_floor": 0.0,
+        "cross_grad": 0.0,
         "wavelet_reg": 0.0,
+        "display_l1": 0.0,
+        "display_grad": 0.0,
+        "display_corr": 0.0,
         "pcc": 0.0,
         "w_data": 0.0,
         "w_struct": 0.0,
+        "w_lat": 0.0,
+        "w_display": 0.0,
         "wavelet_phi_deg": 0.0,
     }
 
@@ -650,7 +804,7 @@ def train_one_epoch(
                 schedule_epoch=schedule_epoch,
                 args=args,
             )
-            if args.experiment_mode == "core_v12_tuned" and is_block_batch:
+            if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"} and is_block_batch:
                 bounded_delta_blocks = aux["bounded_delta"].reshape(batch_size, group_size, 1, nsamples)
                 reflectivity_blocks = aux["reflectivity"].reshape(batch_size, group_size, 1, nsamples)
                 base_log_blocks = aux["base_log"].reshape(batch_size, group_size, 1, nsamples)
@@ -668,14 +822,36 @@ def train_one_epoch(
                     event_mask_blocks,
                     floor_ratio=args.reflectivity_floor_ratio,
                 )
-                total = total + args.lateral_delta_weight * loss_lat_delta + args.reflectivity_floor_weight * loss_refl_floor
+                if args.experiment_mode == "core_v12_refine":
+                    w_lat = ramp_weight(schedule_epoch, args.lateral_warmup_start, args.lateral_warmup_epochs)
+                    w_lat_tensor = torch.tensor(w_lat, device=features_flat.device, dtype=total.dtype)
+                    log_pred_blocks = aux["log_pred"].reshape(batch_size, group_size, 1, nsamples)
+                    loss_cross_grad = cross_gradient_block_loss(
+                        log_pred_blocks,
+                        seismic_hp_blocks,
+                        event_mask_blocks,
+                        beta=args.cross_grad_beta,
+                    )
+                    total = total + w_lat_tensor * (
+                        args.lateral_delta_weight * loss_lat_delta
+                        + args.reflectivity_floor_weight * loss_refl_floor
+                        + args.cross_grad_weight * loss_cross_grad
+                    )
+                else:
+                    w_lat_tensor = torch.ones((), device=features_flat.device, dtype=total.dtype)
+                    loss_cross_grad = torch.zeros_like(total)
+                    total = total + args.lateral_delta_weight * loss_lat_delta + args.reflectivity_floor_weight * loss_refl_floor
                 batch_stats["lat_delta"] = loss_lat_delta
                 batch_stats["refl_floor"] = loss_refl_floor
+                batch_stats["cross_grad"] = loss_cross_grad
+                batch_stats["w_lat"] = w_lat_tensor
                 batch_stats["total"] = total
             else:
                 zero_like = torch.zeros_like(batch_stats["total"])
                 batch_stats["lat_delta"] = zero_like
                 batch_stats["refl_floor"] = zero_like
+                batch_stats["cross_grad"] = zero_like
+                batch_stats["w_lat"] = zero_like
         scaler.scale(total).backward()
         scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
@@ -702,9 +878,15 @@ def train_one_epoch(
             "refl_fp",
             "lat_delta",
             "refl_floor",
+            "cross_grad",
             "wavelet_reg",
+            "display_l1",
+            "display_grad",
+            "display_corr",
             "w_data",
             "w_struct",
+            "w_lat",
+            "w_display",
         ):
             stats[key] += float(batch_stats[key].item())
         stats["pcc"] += float(per_trace_corr(synth, seismic_flat).mean().item())
@@ -760,7 +942,7 @@ def validate_one_epoch(
             schedule_epoch=schedule_epoch,
             args=args,
         )
-        if args.experiment_mode == "core_v12_tuned" and is_block_batch:
+        if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"} and is_block_batch:
             bounded_delta_blocks = aux["bounded_delta"].reshape(batch_size, group_size, 1, nsamples)
             reflectivity_blocks = aux["reflectivity"].reshape(batch_size, group_size, 1, nsamples)
             base_log_blocks = aux["base_log"].reshape(batch_size, group_size, 1, nsamples)
@@ -778,14 +960,36 @@ def validate_one_epoch(
                 event_mask_blocks,
                 floor_ratio=args.reflectivity_floor_ratio,
             )
-            total = total + args.lateral_delta_weight * loss_lat_delta + args.reflectivity_floor_weight * loss_refl_floor
+            if args.experiment_mode == "core_v12_refine":
+                w_lat = ramp_weight(schedule_epoch, args.lateral_warmup_start, args.lateral_warmup_epochs)
+                w_lat_tensor = torch.tensor(w_lat, device=features_flat.device, dtype=total.dtype)
+                log_pred_blocks = aux["log_pred"].reshape(batch_size, group_size, 1, nsamples)
+                loss_cross_grad = cross_gradient_block_loss(
+                    log_pred_blocks,
+                    seismic_hp_blocks,
+                    event_mask_blocks,
+                    beta=args.cross_grad_beta,
+                )
+                total = total + w_lat_tensor * (
+                    args.lateral_delta_weight * loss_lat_delta
+                    + args.reflectivity_floor_weight * loss_refl_floor
+                    + args.cross_grad_weight * loss_cross_grad
+                )
+            else:
+                w_lat_tensor = torch.ones((), device=features_flat.device, dtype=total.dtype)
+                loss_cross_grad = torch.zeros_like(total)
+                total = total + args.lateral_delta_weight * loss_lat_delta + args.reflectivity_floor_weight * loss_refl_floor
             batch_stats["lat_delta"] = loss_lat_delta
             batch_stats["refl_floor"] = loss_refl_floor
+            batch_stats["cross_grad"] = loss_cross_grad
+            batch_stats["w_lat"] = w_lat_tensor
             batch_stats["total"] = total
         else:
             zero_like = torch.zeros_like(batch_stats["total"])
             batch_stats["lat_delta"] = zero_like
             batch_stats["refl_floor"] = zero_like
+            batch_stats["cross_grad"] = zero_like
+            batch_stats["w_lat"] = zero_like
         stats["total"] += float(total.item())
         for key in (
             "corr",
@@ -804,9 +1008,15 @@ def validate_one_epoch(
             "refl_fp",
             "lat_delta",
             "refl_floor",
+            "cross_grad",
             "wavelet_reg",
+            "display_l1",
+            "display_grad",
+            "display_corr",
             "w_data",
             "w_struct",
+            "w_lat",
+            "w_display",
         ):
             stats[key] += float(batch_stats[key].item())
         stats["pcc"] += float(per_trace_corr(synth, seismic_flat).mean().item())
@@ -833,6 +1043,91 @@ def lateral_tv_ratio(section: np.ndarray, base_section: np.ndarray) -> float:
     pred_lat = float(np.mean(np.abs(np.diff(log_section, axis=0))))
     base_lat = float(np.mean(np.abs(np.diff(log_base, axis=0))))
     return pred_lat / (base_lat + 1e-6)
+
+
+def weighted_lateral_tv_ratio_np(
+    section: np.ndarray,
+    base_section: np.ndarray,
+    observed: np.ndarray,
+    fs_hz: float,
+    cutoff_hz: float,
+    beta: float,
+) -> float:
+    if section.shape[0] < 2 or base_section.shape[0] < 2:
+        return 1.0
+    seismic_center = observed - observed.mean(axis=1, keepdims=True)
+    seismic_hp = highpass_filter(seismic_center, cutoff_hz=cutoff_hz, fs_hz=fs_hz)
+    dx = np.abs(np.diff(seismic_hp, axis=0)).astype(np.float32)
+    dx_scale = float(np.percentile(dx, 95.0)) + 1e-6
+    weight = np.exp(-beta * dx / dx_scale).astype(np.float32)
+
+    log_section = np.log(np.clip(section, 1e5, None))
+    log_base = np.log(np.clip(base_section, 1e5, None))
+    pred_dx = np.abs(np.diff(log_section, axis=0)).astype(np.float32)
+    base_dx = np.abs(np.diff(log_base, axis=0)).astype(np.float32)
+
+    pred_lat = float(np.sum(weight * pred_dx) / (np.sum(weight) + 1e-6))
+    base_lat = float(np.sum(weight * base_dx) / (np.sum(weight) + 1e-6))
+    if pred_lat < 1e-8 and base_lat < 1e-8:
+        return 1.0
+    return pred_lat / (base_lat + 1e-6)
+
+
+def display_similarity_metrics_np(observed: np.ndarray, section: np.ndarray) -> Tuple[float, float, float]:
+    obs_disp = shared_visual_map(observed, kind="seismic").astype(np.float64)
+    sec_disp = shared_visual_map(section, kind="impedance").astype(np.float64)
+    obs_flat = obs_disp.ravel()
+    sec_flat = sec_disp.ravel()
+    obs_std = float(np.std(obs_flat))
+    sec_std = float(np.std(sec_flat))
+    if obs_std < 1e-12 or sec_std < 1e-12:
+        pearson = 0.0
+    else:
+        pearson = float(np.corrcoef(obs_flat, sec_flat)[0, 1])
+        if not np.isfinite(pearson):
+            pearson = 0.0
+    cosine = float(np.dot(obs_flat, sec_flat) / ((np.linalg.norm(obs_flat) * np.linalg.norm(sec_flat)) + 1e-12))
+    agreement = float(1.0 - np.mean(np.abs(obs_disp - sec_disp)) / 2.0)
+    return pearson, cosine, agreement
+
+
+def display_direct_match_impedance(
+    observed: np.ndarray,
+    base_impedance: np.ndarray,
+    clip_value: float = 0.999999,
+) -> np.ndarray:
+    obs_disp = shared_visual_map(observed, kind="seismic").astype(np.float64)
+    centered_log = np.arctanh(np.clip(obs_disp, -clip_value, clip_value))
+    base_log = np.log(np.clip(base_impedance, 1e5, None)).astype(np.float64)
+    base_median = np.median(base_log, axis=1, keepdims=True)
+    return np.exp(base_median + centered_log).astype(np.float32)
+
+
+def display_trace_bridge_impedance(
+    observed: np.ndarray,
+    raw_impedance: np.ndarray,
+    base_impedance: np.ndarray,
+    alpha_max: float = 0.41,
+    power: float = 1.40,
+) -> np.ndarray:
+    raw_log = np.log(np.clip(raw_impedance, 1e5, None)).astype(np.float64)
+    direct_log = np.log(
+        np.clip(
+            display_direct_match_impedance(
+                observed=observed,
+                base_impedance=base_impedance,
+            ),
+            1e5,
+            None,
+        )
+    ).astype(np.float64)
+    obs_disp = shared_visual_map(observed, kind="seismic").astype(np.float64)
+    raw_disp = shared_visual_map(raw_impedance, kind="impedance").astype(np.float64)
+    trace_diff = np.mean(np.abs(obs_disp - raw_disp), axis=1, keepdims=True)
+    trace_scale = float(np.max(trace_diff)) + 1e-6
+    alpha = alpha_max * np.power(trace_diff / trace_scale, power)
+    alpha = np.clip(alpha, 0.0, alpha_max)
+    return np.exp(raw_log + alpha * (direct_log - raw_log)).astype(np.float32)
 
 
 def guided_lateral_delta_blend(
@@ -903,7 +1198,8 @@ def candidate_selection_score(metrics: dict) -> float:
     std_base = max(float(metrics["base_impedance_std"]), 1e-6)
     s_var = math.exp(-abs(math.log(std_imp / std_base)))
     s_dev = max(0.0, min(1.0, (float(metrics["mae_ratio_vs_prior"]) - 0.03) / 0.17))
-    s_lat = math.exp(-abs(math.log(max(float(metrics["lat_tv_ratio"]), 1e-6))))
+    lat_metric = float(metrics.get("lat_tv_ratio_weighted", metrics["lat_tv_ratio"]))
+    s_lat = math.exp(-abs(math.log(max(lat_metric, 1e-6))))
     return float(
         0.35 * s_pcc
         + 0.20 * s_res
@@ -918,14 +1214,38 @@ def candidate_selection_score(metrics: dict) -> float:
 def candidate_score_components(metrics: dict) -> dict:
     std_imp = max(float(metrics["final_impedance_std"]), 1e-6)
     std_base = max(float(metrics["base_impedance_std"]), 1e-6)
+    lat_metric = float(metrics.get("lat_tv_ratio_weighted", metrics["lat_tv_ratio"]))
     return {
         "S_pcc": float(metrics["mean_trace_pcc"]),
         "S_res": math.exp(-2.5 * float(metrics["resid_l1_si"])),
         "S_edge": float(metrics["edge_alignment"]),
         "S_var": math.exp(-abs(math.log(std_imp / std_base))),
         "S_dev": max(0.0, min(1.0, (float(metrics["mae_ratio_vs_prior"]) - 0.03) / 0.17)),
-        "S_lat": math.exp(-abs(math.log(max(float(metrics["lat_tv_ratio"]), 1e-6)))),
+        "S_lat": math.exp(-abs(math.log(max(lat_metric, 1e-6)))),
     }
+
+
+def display_selection_score(
+    metrics: dict,
+    agreement_weight: float = 0.35,
+    cosine_weight: float = 0.15,
+    pearson_weight: float = 0.10,
+    pcc_weight: float = 0.20,
+    resid_weight: float = 0.15,
+    edge_weight: float = 0.10,
+) -> float:
+    s_display_agreement = float(metrics["display_agreement"])
+    s_display_cosine = max(0.0, min(1.0, 0.5 * (float(metrics.get("display_cosine", 0.0)) + 1.0)))
+    pearson = float(metrics.get("display_pearson", 0.0))
+    s_display_pearson = max(0.0, min(1.0, 0.5 * (pearson + 1.0))) if math.isfinite(pearson) else 0.0
+    return float(
+        agreement_weight * s_display_agreement
+        + cosine_weight * s_display_cosine
+        + pearson_weight * s_display_pearson
+        + pcc_weight * float(metrics["mean_trace_pcc"])
+        + resid_weight * math.exp(-2.5 * float(metrics["resid_l1_si"]))
+        + edge_weight * float(metrics["edge_alignment"])
+    )
 
 
 def summarize_wavelet_tensor(wavelet_module: LearnableWavelet, wavelet: torch.Tensor) -> dict:
@@ -950,6 +1270,9 @@ def evaluate_log_candidate(
     device: torch.device,
     forward_model: DynamicForwardModel,
     wavelet_module: LearnableWavelet,
+    lateral_score_beta: float,
+    selection_mode: str,
+    display_score_weights: dict,
 ) -> dict:
     imp_raw = np.exp(infer_log).astype(np.float32)
     base_imp = np.exp(infer_base_log).astype(np.float32)
@@ -962,18 +1285,44 @@ def evaluate_log_candidate(
     raw_trace_pcc = mean_trace_corr_np(synth_raw, infer_seismic)
     postprocess_metrics: List[dict] = []
     best_post = None
-    for post_name, imp_final in generate_extended_postprocess_candidates(
+    candidate_list = list(
+        generate_extended_postprocess_candidates(
         raw_impedance=imp_raw,
         base_impedance=base_imp,
         observed=infer_seismic,
         fs_hz=fs_hz,
         cutoff_hz=highpass_cutoff,
-    ):
+        )
+    )
+    if selection_mode == "display":
+        candidate_list.append(
+            (
+                "display_trace_bridge_am0.41_p1.40",
+                display_trace_bridge_impedance(
+                    observed=infer_seismic,
+                    raw_impedance=imp_raw,
+                    base_impedance=base_imp,
+                    alpha_max=0.41,
+                    power=1.40,
+                ),
+            )
+        )
+        candidate_list.append(
+            (
+                "display_direct_match",
+                display_direct_match_impedance(
+                    observed=infer_seismic,
+                    base_impedance=base_imp,
+                ),
+            )
+        )
+    for post_name, imp_final in candidate_list:
         synth_final = forward_model(
             torch.from_numpy(imp_final[:, None, :]).to(device),
             wavelet.to(device),
         ).squeeze(1).cpu().numpy().astype(np.float32)
         resid_l1_si, resid_rms_ratio = scale_invariant_metrics_np(synth_final, infer_seismic)
+        display_pearson, display_cosine, display_agreement = display_similarity_metrics_np(infer_seismic, imp_final)
         metrics = {
             "postprocess_name": post_name,
             "final_trace_pcc": mean_trace_corr_np(synth_final, infer_seismic),
@@ -985,6 +1334,17 @@ def evaluate_log_candidate(
             "resid_l1_si": resid_l1_si,
             "resid_rms_ratio": resid_rms_ratio,
             "lat_tv_ratio": lateral_tv_ratio(imp_final, base_imp),
+            "lat_tv_ratio_weighted": weighted_lateral_tv_ratio_np(
+                imp_final,
+                base_imp,
+                infer_seismic,
+                fs_hz=fs_hz,
+                cutoff_hz=highpass_cutoff,
+                beta=lateral_score_beta,
+            ),
+            "display_pearson": display_pearson,
+            "display_cosine": display_cosine,
+            "display_agreement": display_agreement,
             "wavelet_phi_deg": float(wavelet_summary["phi_deg"]),
             "wavelet_f_scale": float(wavelet_summary["f_scale"]),
             "wavelet_bad": float(wavelet_summary["wavelet_bad"]),
@@ -998,11 +1358,30 @@ def evaluate_log_candidate(
                 "edge_alignment": metrics["edge_alignment"],
                 "resid_l1_si": metrics["resid_l1_si"],
                 "lat_tv_ratio": metrics["lat_tv_ratio"],
+                "lat_tv_ratio_weighted": metrics["lat_tv_ratio_weighted"],
                 "wavelet_bad": metrics["wavelet_bad"],
             }
         )
+        metrics["display_selection_score"] = display_selection_score(
+            {
+                "display_agreement": metrics["display_agreement"],
+                "mean_trace_pcc": metrics["final_trace_pcc"],
+                "resid_l1_si": metrics["resid_l1_si"],
+                "edge_alignment": metrics["edge_alignment"],
+                "display_cosine": metrics["display_cosine"],
+                "display_pearson": metrics["display_pearson"],
+            }
+            ,
+            **display_score_weights,
+        )
         postprocess_metrics.append(metrics)
-        if best_post is None or metrics["selection_score"] > best_post["metrics"]["selection_score"]:
+        current_score = metrics["display_selection_score"] if selection_mode == "display" else metrics["selection_score"]
+        best_score = (
+            best_post["metrics"]["display_selection_score"]
+            if best_post is not None and selection_mode == "display"
+            else (best_post["metrics"]["selection_score"] if best_post is not None else None)
+        )
+        if best_post is None or current_score > best_score:
             best_post = {"metrics": metrics, "imp_final": imp_final, "synth_final": synth_final}
     if best_post is None:
         raise RuntimeError("No postprocess candidate evaluated")
@@ -1023,6 +1402,10 @@ def evaluate_log_candidate(
         "resid_l1_si": best_post["metrics"]["resid_l1_si"],
         "resid_rms_ratio": best_post["metrics"]["resid_rms_ratio"],
         "lat_tv_ratio": best_post["metrics"]["lat_tv_ratio"],
+        "lat_tv_ratio_weighted": best_post["metrics"]["lat_tv_ratio_weighted"],
+        "display_pearson": best_post["metrics"]["display_pearson"],
+        "display_cosine": best_post["metrics"]["display_cosine"],
+        "display_agreement": best_post["metrics"]["display_agreement"],
         "wavelet_phi_deg": best_post["metrics"]["wavelet_phi_deg"],
         "wavelet_f_scale": best_post["metrics"]["wavelet_f_scale"],
         "wavelet_bad": best_post["metrics"]["wavelet_bad"],
@@ -1030,6 +1413,7 @@ def evaluate_log_candidate(
     }
     metrics["score_components"] = candidate_score_components(metrics)
     metrics["selection_score"] = candidate_selection_score(metrics)
+    metrics["display_selection_score"] = display_selection_score(metrics, **display_score_weights)
     return {
         "metrics": metrics,
         "infer_log": infer_log,
@@ -1057,6 +1441,9 @@ def evaluate_candidate_checkpoint(
     device: torch.device,
     delta_smoother: FixedGaussian1D,
     forward_model: DynamicForwardModel,
+    lateral_score_beta: float,
+    selection_mode: str,
+    display_score_weights: dict,
 ) -> dict:
     payload = torch.load(ckpt_path, map_location=device)
     model.load_state_dict(payload["model"], strict=True)
@@ -1075,6 +1462,9 @@ def evaluate_candidate_checkpoint(
         device=device,
         forward_model=forward_model,
         wavelet_module=wavelet_module,
+        lateral_score_beta=lateral_score_beta,
+        selection_mode=selection_mode,
+        display_score_weights=display_score_weights,
     )
 
 
@@ -1349,7 +1739,21 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--lateral-beta", type=float, default=3.0)
     parser.add_argument("--reflectivity-floor-weight", type=float, default=0.02)
     parser.add_argument("--reflectivity-floor-ratio", type=float, default=0.90)
-    parser.add_argument("--experiment-mode", type=str, choices=["core_v11", "core_v11_tuned", "core_v12_tuned", "amp_only"], default="core_v11")
+    parser.add_argument("--cross-grad-weight", type=float, default=0.0)
+    parser.add_argument("--cross-grad-beta", type=float, default=3.0)
+    parser.add_argument("--lateral-warmup-start", type=int, default=3)
+    parser.add_argument("--lateral-warmup-epochs", type=int, default=6)
+    parser.add_argument("--display-l1-weight", type=float, default=0.0)
+    parser.add_argument("--display-grad-weight", type=float, default=0.0)
+    parser.add_argument("--display-corr-weight", type=float, default=0.0)
+    parser.add_argument("--display-warmup-epochs", type=int, default=6)
+    parser.add_argument("--display-score-agreement-weight", type=float, default=0.35)
+    parser.add_argument("--display-score-cosine-weight", type=float, default=0.15)
+    parser.add_argument("--display-score-pearson-weight", type=float, default=0.10)
+    parser.add_argument("--display-score-pcc-weight", type=float, default=0.20)
+    parser.add_argument("--display-score-resid-weight", type=float, default=0.15)
+    parser.add_argument("--display-score-edge-weight", type=float, default=0.10)
+    parser.add_argument("--experiment-mode", type=str, choices=["core_v11", "core_v11_tuned", "core_v11_similarity", "core_v12_tuned", "core_v12_refine", "amp_only"], default="core_v11")
     parser.add_argument("--reset-history-on-resume", action="store_true")
     parser.add_argument("--reset-optim-on-resume", action="store_true")
     return parser
@@ -1372,7 +1776,7 @@ def main() -> None:
 
     actual_train_traces = int(args.train_traces)
     block_starts = None
-    if args.experiment_mode == "core_v12_tuned":
+    if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"}:
         block_starts, train_trace_ids = contiguous_block_trace_ids(
             total_traces=tracecount,
             selected_traces=args.train_traces,
@@ -1401,7 +1805,7 @@ def main() -> None:
     prior_weight = prior_weight_map(prior_uncertainty)
     features = preprocess_v8_channels(train_seismic, base_prior_log, args.highpass_cutoff, fs_hz)
 
-    if args.experiment_mode == "core_v12_tuned":
+    if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"}:
         group_size = int(args.lateral_group_size)
         block_count = features.shape[0] // group_size
         features = features.reshape(block_count, group_size, features.shape[1], features.shape[2])
@@ -1532,6 +1936,7 @@ def main() -> None:
             f"pcc={val_stats['pcc']:.4f} | amp={val_stats['amp']:.4f} | "
             f"struct={val_stats['struct_corr']:.4f} | refl_fp={val_stats['refl_fp']:.4f} | "
             f"lat={val_stats['lat_delta']:.4f} | floor={val_stats['refl_floor']:.4f} | "
+            f"cg={val_stats['cross_grad']:.4f} | w_lat={val_stats['w_lat']:.3f} | "
             f"phi={val_stats['wavelet_phi_deg']:.2f}deg | trainable={wavelet_trainable}"
         )
         payload = checkpoint_payload(model, wavelet_module, optimizer, scheduler, epoch, best_val, best_pcc, history)
@@ -1579,6 +1984,15 @@ def main() -> None:
         raise RuntimeError("No candidate checkpoints available for inference")
 
     candidate_results = []
+    selection_mode = "display" if args.experiment_mode == "core_v11_similarity" else "default"
+    display_score_weights = {
+        "agreement_weight": float(args.display_score_agreement_weight),
+        "cosine_weight": float(args.display_score_cosine_weight),
+        "pearson_weight": float(args.display_score_pearson_weight),
+        "pcc_weight": float(args.display_score_pcc_weight),
+        "resid_weight": float(args.display_score_resid_weight),
+        "edge_weight": float(args.display_score_edge_weight),
+    }
     for ckpt_name, ckpt_path in candidate_paths:
         candidate_results.append(
             evaluate_candidate_checkpoint(
@@ -1595,10 +2009,16 @@ def main() -> None:
                 device=device,
                 delta_smoother=delta_smoother,
                 forward_model=forward_model,
+                lateral_score_beta=args.cross_grad_beta,
+                selection_mode=selection_mode,
+                display_score_weights=display_score_weights,
             )
         )
 
-    selected = max(candidate_results, key=lambda item: item["metrics"]["selection_score"])
+    if selection_mode == "display":
+        selected = max(candidate_results, key=lambda item: item["metrics"]["display_selection_score"])
+    else:
+        selected = max(candidate_results, key=lambda item: item["metrics"]["selection_score"])
     selected_metrics = selected["metrics"]
     imp_raw = selected["imp_raw"]
     imp_final = selected["imp_final"]
@@ -1672,7 +2092,7 @@ def main() -> None:
         "nsamples": nsamples,
         "dt_seconds": dt,
         "experiment_mode": args.experiment_mode,
-        "lateral_group_size": int(args.lateral_group_size) if args.experiment_mode == "core_v12_tuned" else 1,
+        "lateral_group_size": int(args.lateral_group_size) if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"} else 1,
         "selected_checkpoint": selected_metrics["checkpoint_name"],
         "selected_checkpoint_path": selected_metrics["checkpoint_path"],
         "selected_epoch": selected_metrics["checkpoint_epoch"],
@@ -1690,10 +2110,15 @@ def main() -> None:
         "resid_l1_si": selected_metrics["resid_l1_si"],
         "resid_rms_ratio": selected_metrics["resid_rms_ratio"],
         "lat_tv_ratio": selected_metrics["lat_tv_ratio"],
+        "lat_tv_ratio_weighted": selected_metrics["lat_tv_ratio_weighted"],
+        "display_pearson": selected_metrics["display_pearson"],
+        "display_cosine": selected_metrics["display_cosine"],
+        "display_agreement": selected_metrics["display_agreement"],
         "wavelet_phi_deg": selected_metrics["wavelet_phi_deg"],
         "wavelet_f_scale": selected_metrics["wavelet_f_scale"],
         "wavelet_bad": selected_metrics["wavelet_bad"],
         "selection_score": selected_metrics["selection_score"],
+        "display_selection_score": selected_metrics["display_selection_score"],
         "display_clip_ratio": clipped_ratio,
     }
     save_json(summary, args.out / "run_summary.json")

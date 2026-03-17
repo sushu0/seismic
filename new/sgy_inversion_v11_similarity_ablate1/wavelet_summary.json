@@ -1,0 +1,47 @@
+{
+  "initial_wavelet": {
+    "phi_rad": 0.0,
+    "phi_deg": 0.0,
+    "f_scale": 1.0,
+    "effective_f0_hz": 25.0,
+    "gain": 1.0,
+    "length_seconds": 0.128,
+    "length_samples": 65,
+    "energy_l2": 2.446249008178711,
+    "max_abs": 1.0,
+    "wavelet_bad": 0.0
+  },
+  "selected_wavelet": {
+    "phi_rad": 0.03143191710114479,
+    "phi_deg": 1.8009161949157715,
+    "f_scale": 1.0,
+    "effective_f0_hz": 25.0,
+    "gain": 1.0,
+    "length_seconds": 0.128,
+    "length_samples": 65,
+    "energy_l2": 2.446249008178711,
+    "max_abs": 0.9995060563087463,
+    "wavelet_bad": 0.0
+  },
+  "selected_checkpoint": "best_pcc",
+  "candidates": [
+    {
+      "checkpoint_name": "best_loss",
+      "wavelet_phi_deg": 1.8009161949157715,
+      "wavelet_f_scale": 1.0,
+      "wavelet_bad": 0.0
+    },
+    {
+      "checkpoint_name": "best_pcc",
+      "wavelet_phi_deg": 1.8009161949157715,
+      "wavelet_f_scale": 1.0,
+      "wavelet_bad": 0.0
+    },
+    {
+      "checkpoint_name": "latest",
+      "wavelet_phi_deg": 1.8009161949157715,
+      "wavelet_f_scale": 1.0,
+      "wavelet_bad": 0.0
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "mode": "display_99bridge_export",
+  "source_direct_dir": "d:\\SEISMIC_CODING\\new\\sgy_inversion_v11_display_direct_full",
+  "source_bridge95_dir": "d:\\SEISMIC_CODING\\new\\sgy_inversion_v11_display_bridge95_full",
+  "source_edgeplus_dir": "d:\\SEISMIC_CODING\\new\\sgy_inversion_v11_edgeplus",
+  "source_direct_postprocess_mode": "display_direct_match",
+  "source_bridge95_postprocess_mode": "display_trace_bridge_am0.41_p1.40",
+  "sgy": "d:\\SEISMIC_CODING\\new\\0908_Q1JB_PSTMR_ChengGuo-2500-6000.Sgy",
+  "infer_traces": 5000,
+  "dt_seconds": 0.002,
+  "fs_hz": 500.0,
+  "highpass_cutoff_hz": 12.0,
+  "bridge_method": "direct_to_bridge95_trace_adaptive_log_blend",
+  "alpha_max": 0.2,
+  "power": 0.5,
+  "target_similarity_goal": "keep_display_agreement_above_0.99_while_improving_physics_vs_direct"
+}

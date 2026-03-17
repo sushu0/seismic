@@ -269,7 +269,8 @@ def stft_logmag_l1_scale_invariant(
 def seismic_display_map_torch(seismic: torch.Tensor) -> torch.Tensor:
     with torch.amp.autocast(device_type=seismic.device.type, enabled=False):
         seismic_f = seismic.float()
-        scale = torch.quantile(torch.abs(seismic_f).flatten(1), 0.99, dim=1, keepdim=True).view(-1, 1, 1)
+        scale_shape = [seismic_f.shape[0]] + [1] * (seismic_f.ndim - 1)
+        scale = torch.quantile(torch.abs(seismic_f).flatten(1), 0.99, dim=1, keepdim=True).view(*scale_shape)
         return torch.tanh(seismic_f / (scale + 1e-6))
 
 
@@ -303,6 +304,69 @@ def display_similarity_losses(
     corr = cov / torch.sqrt(obs_var * imp_var + 1e-6)
     loss_corr = torch.mean(1.0 - corr.clamp(-1.0, 1.0))
     return loss_l1, loss_grad, loss_corr
+
+
+def ssim2d_loss_torch(pred: torch.Tensor, target: torch.Tensor, window_size: int = 7) -> torch.Tensor:
+    with torch.amp.autocast(device_type=pred.device.type, enabled=False):
+        pred_f = pred.float()
+        target_f = target.float()
+        height = int(pred_f.shape[-2])
+        width = int(pred_f.shape[-1])
+        kh = max(1, min(window_size, height))
+        kw = max(1, min(window_size, width))
+        if kh % 2 == 0:
+            kh = max(1, kh - 1)
+        if kw % 2 == 0:
+            kw = max(1, kw - 1)
+        kernel = torch.ones(1, 1, kh, kw, device=pred.device, dtype=torch.float32) / float(kh * kw)
+        padding = (kh // 2, kw // 2)
+        mu_pred = F.conv2d(pred_f, kernel, padding=padding)
+        mu_target = F.conv2d(target_f, kernel, padding=padding)
+        mu_pred_sq = mu_pred.square()
+        mu_target_sq = mu_target.square()
+        mu_pred_target = mu_pred * mu_target
+        sigma_pred_sq = F.conv2d(pred_f * pred_f, kernel, padding=padding) - mu_pred_sq
+        sigma_target_sq = F.conv2d(target_f * target_f, kernel, padding=padding) - mu_target_sq
+        sigma_pred_target = F.conv2d(pred_f * target_f, kernel, padding=padding) - mu_pred_target
+        sigma_pred_sq = torch.clamp(sigma_pred_sq, min=0.0)
+        sigma_target_sq = torch.clamp(sigma_target_sq, min=0.0)
+        c1 = (0.01 * 2.0) ** 2
+        c2 = (0.03 * 2.0) ** 2
+        numerator = (2.0 * mu_pred_target + c1) * (2.0 * sigma_pred_target + c2)
+        denominator = (mu_pred_sq + mu_target_sq + c1) * (sigma_pred_sq + sigma_target_sq + c2) + 1e-6
+        ssim = numerator / denominator
+        return 1.0 - ssim.mean()
+
+
+def rendered_display_similarity_losses(
+    synth_aligned: torch.Tensor,
+    seismic: torch.Tensor,
+    event_guide: torch.Tensor,
+    block_group_size: int = 1,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    batch_traces, _, nsamples = synth_aligned.shape
+    if block_group_size > 1 and batch_traces % block_group_size == 0:
+        batch_blocks = batch_traces // block_group_size
+        synth_map = synth_aligned.reshape(batch_blocks, block_group_size, 1, nsamples).permute(0, 2, 1, 3)
+        seismic_map = seismic.reshape(batch_blocks, block_group_size, 1, nsamples).permute(0, 2, 1, 3)
+        event_map = event_guide.reshape(batch_blocks, block_group_size, 1, nsamples).permute(0, 2, 1, 3)
+    else:
+        synth_map = synth_aligned.unsqueeze(2)
+        seismic_map = seismic.unsqueeze(2)
+        event_map = event_guide.unsqueeze(2)
+
+    synth_disp = seismic_display_map_torch(synth_map)
+    seismic_disp = seismic_display_map_torch(seismic_map)
+    weight = 0.35 + 0.65 * event_map.detach()
+
+    loss_ssim = ssim2d_loss_torch(synth_disp, seismic_disp)
+    loss_grad_t = torch.mean(weight[..., 1:] * torch.abs(torch.diff(synth_disp, dim=-1) - torch.diff(seismic_disp, dim=-1)))
+    if synth_disp.shape[-2] > 1:
+        grad_x_weight = 0.5 * (weight[:, :, 1:, :] + weight[:, :, :-1, :])
+        loss_grad_x = torch.mean(grad_x_weight * torch.abs(torch.diff(synth_disp, dim=-2) - torch.diff(seismic_disp, dim=-2)))
+    else:
+        loss_grad_x = torch.zeros_like(loss_ssim)
+    return loss_ssim, loss_grad_t, loss_grad_x
 
 
 def residual_guide(observed: torch.Tensor, synth_aligned: torch.Tensor) -> torch.Tensor:
@@ -445,7 +509,7 @@ def set_wavelet_trainability(
     freeze_epochs: int,
     experiment_mode: str,
 ) -> bool:
-    train_phase = experiment_mode in {"core_v11", "core_v11_tuned", "core_v12_tuned", "core_v12_refine"} and epoch > freeze_epochs
+    train_phase = experiment_mode in {"core_v11", "core_v11_tuned", "core_v12_tuned", "core_v12_refine", "core_v12_rendered_similarity"} and epoch > freeze_epochs
     wavelet_module.phi.requires_grad_(train_phase)
     wavelet_module.log_f_scale.requires_grad_(False)
     wavelet_module.gain.requires_grad_(False)
@@ -484,6 +548,7 @@ def compute_v11_losses(
     prior_weight: torch.Tensor,
     epoch: int,
     schedule_epoch: int,
+    block_group_size: int,
     args,
 ):
     raw_delta = model(features)
@@ -523,14 +588,22 @@ def compute_v11_losses(
     loss_wavelet_reg = wavelet_regularization(wavelet, wavelet_module.initial_wavelet)
     loss_grad = gradient_consistency_loss(synth.float(), seismic.float())
     loss_stft_legacy = stft_logmag_l1(synth.float(), seismic.float())
-    loss_display_l1, loss_display_grad, loss_display_corr = display_similarity_losses(log_pred, seismic, event_guide)
+    zero_like = torch.zeros_like(loss_struct_corr)
+    loss_display_l1 = zero_like
+    loss_display_grad = zero_like
+    loss_display_corr = zero_like
+    loss_render_ssim = zero_like
+    loss_render_grad_t = zero_like
+    loss_render_grad_x = zero_like
 
     data_warmup_epochs = getattr(args, "data_warmup_epochs", 10)
     struct_warmup_epochs = getattr(args, "struct_warmup_epochs", 12)
     display_warmup_epochs = getattr(args, "display_warmup_epochs", 6)
+    render_display_warmup_epochs = getattr(args, "render_display_warmup_epochs", 6)
     w_data = min(1.0, float(epoch) / float(max(data_warmup_epochs, 1)))
     w_struct = min(1.0, float(schedule_epoch) / float(max(struct_warmup_epochs, 1)))
     w_display = min(1.0, float(schedule_epoch) / float(max(display_warmup_epochs, 1)))
+    w_render_display = min(1.0, float(schedule_epoch) / float(max(render_display_warmup_epochs, 1)))
     if args.experiment_mode == "amp_only":
         loss_corr = multiscale_pearson_loss(synth, seismic)
         total = (
@@ -568,6 +641,10 @@ def compute_v11_losses(
             "display_grad": torch.zeros_like(loss_struct_corr),
             "display_corr": torch.zeros_like(loss_struct_corr),
             "w_display": torch.zeros_like(loss_struct_corr),
+            "render_display_ssim": zero_like,
+            "render_display_grad_t": zero_like,
+            "render_display_grad_x": zero_like,
+            "w_render_display": zero_like,
         }
     elif args.experiment_mode == "core_v11":
         loss_lncc = multiscale_lncc_loss(synth, seismic, args.lncc_windows)
@@ -609,8 +686,13 @@ def compute_v11_losses(
             "display_grad": torch.zeros_like(loss_struct_corr),
             "display_corr": torch.zeros_like(loss_struct_corr),
             "w_display": torch.zeros_like(loss_struct_corr),
+            "render_display_ssim": zero_like,
+            "render_display_grad_t": zero_like,
+            "render_display_grad_x": zero_like,
+            "w_render_display": zero_like,
         }
     elif args.experiment_mode == "core_v11_similarity":
+        loss_display_l1, loss_display_grad, loss_display_corr = display_similarity_losses(log_pred, seismic, event_guide)
         loss_corr = multiscale_pearson_loss(synth, seismic)
         loss_lncc = multiscale_lncc_loss(synth, seismic, args.lncc_windows)
         loss_stft = stft_logmag_l1_scale_invariant(synth_aligned, seismic)
@@ -661,6 +743,72 @@ def compute_v11_losses(
             "display_grad": loss_display_grad,
             "display_corr": loss_display_corr,
             "w_display": torch.tensor(w_display, device=features.device),
+            "render_display_ssim": zero_like,
+            "render_display_grad_t": zero_like,
+            "render_display_grad_x": zero_like,
+            "w_render_display": zero_like,
+        }
+    elif args.experiment_mode == "core_v12_rendered_similarity":
+        loss_corr = multiscale_pearson_loss(synth, seismic)
+        loss_lncc = multiscale_lncc_loss(synth, seismic, args.lncc_windows)
+        loss_stft = stft_logmag_l1_scale_invariant(synth_aligned, seismic)
+        loss_render_ssim, loss_render_grad_t, loss_render_grad_x = rendered_display_similarity_losses(
+            synth_aligned=synth_aligned,
+            seismic=seismic,
+            event_guide=event_guide,
+            block_group_size=block_group_size,
+        )
+        total = (
+            w_data * (
+                args.tuned_pcc_weight * loss_corr
+                + args.tuned_lncc_weight * loss_lncc
+                + args.amp_loss_weight * amp_loss
+                + args.tuned_stft_weight * loss_stft
+            )
+            + 0.20 * loss_prior
+            + w_struct * (
+                args.tuned_structure_corr_weight * loss_struct_corr
+                + args.tuned_structure_l1_weight * loss_struct_l1
+                + args.tuned_structure_bg_weight * loss_struct_bg
+                + args.tuned_structure_gain_weight * loss_struct_gain
+                + args.tuned_variance_floor_weight * loss_var_floor
+                + args.tuned_reflectivity_fp_weight * loss_refl_fp
+            )
+            + w_render_display * (
+                args.render_display_ssim_weight * loss_render_ssim
+                + args.render_display_grad_t_weight * loss_render_grad_t
+                + args.render_display_grad_x_weight * loss_render_grad_x
+            )
+            + 0.02 * loss_tv
+            + 0.02 * loss_delta
+            + args.tuned_wavelet_reg_weight * loss_wavelet_reg
+        )
+        stats = {
+            "corr": loss_corr,
+            "lncc": loss_lncc,
+            "amp": amp_loss,
+            "stft": loss_stft,
+            "grad": loss_grad,
+            "prior": loss_prior,
+            "tv": loss_tv,
+            "delta": loss_delta,
+            "struct_corr": loss_struct_corr,
+            "struct_l1": loss_struct_l1,
+            "struct_bg": loss_struct_bg,
+            "struct_gain": loss_struct_gain,
+            "var_floor": loss_var_floor,
+            "refl_fp": loss_refl_fp,
+            "wavelet_reg": loss_wavelet_reg,
+            "w_data": torch.tensor(w_data, device=features.device),
+            "w_struct": torch.tensor(w_struct, device=features.device),
+            "display_l1": zero_like,
+            "display_grad": zero_like,
+            "display_corr": zero_like,
+            "w_display": zero_like,
+            "render_display_ssim": loss_render_ssim,
+            "render_display_grad_t": loss_render_grad_t,
+            "render_display_grad_x": loss_render_grad_x,
+            "w_render_display": torch.tensor(w_render_display, device=features.device),
         }
     else:
         loss_corr = multiscale_pearson_loss(synth, seismic)
@@ -708,6 +856,10 @@ def compute_v11_losses(
             "display_grad": torch.zeros_like(loss_struct_corr),
             "display_corr": torch.zeros_like(loss_struct_corr),
             "w_display": torch.zeros_like(loss_struct_corr),
+            "render_display_ssim": zero_like,
+            "render_display_grad_t": zero_like,
+            "render_display_grad_x": zero_like,
+            "w_render_display": zero_like,
         }
     stats["total"] = total
     aux = {
@@ -745,11 +897,15 @@ def init_epoch_stats() -> dict:
         "display_l1": 0.0,
         "display_grad": 0.0,
         "display_corr": 0.0,
+        "render_display_ssim": 0.0,
+        "render_display_grad_t": 0.0,
+        "render_display_grad_x": 0.0,
         "pcc": 0.0,
         "w_data": 0.0,
         "w_struct": 0.0,
         "w_lat": 0.0,
         "w_display": 0.0,
+        "w_render_display": 0.0,
         "wavelet_phi_deg": 0.0,
     }
 
@@ -802,9 +958,10 @@ def train_one_epoch(
                 prior_weight=prior_weight_flat,
                 epoch=epoch,
                 schedule_epoch=schedule_epoch,
+                block_group_size=group_size if is_block_batch else 1,
                 args=args,
             )
-            if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"} and is_block_batch:
+            if args.experiment_mode in {"core_v12_tuned", "core_v12_refine", "core_v12_rendered_similarity"} and is_block_batch:
                 bounded_delta_blocks = aux["bounded_delta"].reshape(batch_size, group_size, 1, nsamples)
                 reflectivity_blocks = aux["reflectivity"].reshape(batch_size, group_size, 1, nsamples)
                 base_log_blocks = aux["base_log"].reshape(batch_size, group_size, 1, nsamples)
@@ -822,7 +979,7 @@ def train_one_epoch(
                     event_mask_blocks,
                     floor_ratio=args.reflectivity_floor_ratio,
                 )
-                if args.experiment_mode == "core_v12_refine":
+                if args.experiment_mode in {"core_v12_refine", "core_v12_rendered_similarity"}:
                     w_lat = ramp_weight(schedule_epoch, args.lateral_warmup_start, args.lateral_warmup_epochs)
                     w_lat_tensor = torch.tensor(w_lat, device=features_flat.device, dtype=total.dtype)
                     log_pred_blocks = aux["log_pred"].reshape(batch_size, group_size, 1, nsamples)
@@ -883,10 +1040,14 @@ def train_one_epoch(
             "display_l1",
             "display_grad",
             "display_corr",
+            "render_display_ssim",
+            "render_display_grad_t",
+            "render_display_grad_x",
             "w_data",
             "w_struct",
             "w_lat",
             "w_display",
+            "w_render_display",
         ):
             stats[key] += float(batch_stats[key].item())
         stats["pcc"] += float(per_trace_corr(synth, seismic_flat).mean().item())
@@ -940,9 +1101,10 @@ def validate_one_epoch(
             prior_weight=prior_weight_flat,
             epoch=epoch,
             schedule_epoch=schedule_epoch,
+            block_group_size=group_size if is_block_batch else 1,
             args=args,
         )
-        if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"} and is_block_batch:
+        if args.experiment_mode in {"core_v12_tuned", "core_v12_refine", "core_v12_rendered_similarity"} and is_block_batch:
             bounded_delta_blocks = aux["bounded_delta"].reshape(batch_size, group_size, 1, nsamples)
             reflectivity_blocks = aux["reflectivity"].reshape(batch_size, group_size, 1, nsamples)
             base_log_blocks = aux["base_log"].reshape(batch_size, group_size, 1, nsamples)
@@ -960,7 +1122,7 @@ def validate_one_epoch(
                 event_mask_blocks,
                 floor_ratio=args.reflectivity_floor_ratio,
             )
-            if args.experiment_mode == "core_v12_refine":
+            if args.experiment_mode in {"core_v12_refine", "core_v12_rendered_similarity"}:
                 w_lat = ramp_weight(schedule_epoch, args.lateral_warmup_start, args.lateral_warmup_epochs)
                 w_lat_tensor = torch.tensor(w_lat, device=features_flat.device, dtype=total.dtype)
                 log_pred_blocks = aux["log_pred"].reshape(batch_size, group_size, 1, nsamples)
@@ -1013,10 +1175,14 @@ def validate_one_epoch(
             "display_l1",
             "display_grad",
             "display_corr",
+            "render_display_ssim",
+            "render_display_grad_t",
+            "render_display_grad_x",
             "w_data",
             "w_struct",
             "w_lat",
             "w_display",
+            "w_render_display",
         ):
             stats[key] += float(batch_stats[key].item())
         stats["pcc"] += float(per_trace_corr(synth, seismic_flat).mean().item())
@@ -1091,6 +1257,48 @@ def display_similarity_metrics_np(observed: np.ndarray, section: np.ndarray) -> 
     return pearson, cosine, agreement
 
 
+def rendered_display_similarity_metrics_np(observed: np.ndarray, synthetic: np.ndarray) -> Tuple[float, float, float]:
+    obs_disp = shared_visual_map(observed, kind="seismic").astype(np.float64)
+    synth_disp = shared_visual_map(synthetic, kind="seismic").astype(np.float64)
+    obs_flat = obs_disp.ravel()
+    synth_flat = synth_disp.ravel()
+    obs_std = float(np.std(obs_flat))
+    synth_std = float(np.std(synth_flat))
+    if obs_std < 1e-12 or synth_std < 1e-12:
+        pearson = 0.0
+    else:
+        pearson = float(np.corrcoef(obs_flat, synth_flat)[0, 1])
+        if not np.isfinite(pearson):
+            pearson = 0.0
+    cosine = float(np.dot(obs_flat, synth_flat) / ((np.linalg.norm(obs_flat) * np.linalg.norm(synth_flat)) + 1e-12))
+    agreement = float(1.0 - np.mean(np.abs(obs_disp - synth_disp)) / 2.0)
+    return pearson, cosine, agreement
+
+
+def hard_physics_gate(
+    metrics: dict,
+    min_pcc: float,
+    max_resid: float,
+    std_ratio_min: float,
+    std_ratio_max: float,
+    max_latw: float,
+    cheat_candidate: bool,
+) -> Tuple[bool, str]:
+    reasons: List[str] = []
+    std_ratio = float(metrics["final_impedance_std"]) / (float(metrics["base_impedance_std"]) + 1e-6)
+    if cheat_candidate:
+        reasons.append("cheat_candidate")
+    if float(metrics["mean_trace_pcc"]) < min_pcc:
+        reasons.append("low_pcc")
+    if float(metrics["resid_l1_si"]) > max_resid:
+        reasons.append("high_resid")
+    if std_ratio < std_ratio_min or std_ratio > std_ratio_max:
+        reasons.append("std_ratio_out_of_range")
+    if float(metrics["lat_tv_ratio_weighted"]) > max_latw:
+        reasons.append("latw_too_high")
+    return len(reasons) == 0, ";".join(reasons)
+
+
 def display_direct_match_impedance(
     observed: np.ndarray,
     base_impedance: np.ndarray,
@@ -1128,6 +1336,69 @@ def display_trace_bridge_impedance(
     alpha = alpha_max * np.power(trace_diff / trace_scale, power)
     alpha = np.clip(alpha, 0.0, alpha_max)
     return np.exp(raw_log + alpha * (direct_log - raw_log)).astype(np.float32)
+
+
+def scale_align_section_np(synthetic: np.ndarray, observed: np.ndarray) -> np.ndarray:
+    synth = synthetic.astype(np.float64, copy=False)
+    obs = observed.astype(np.float64, copy=False)
+    num = np.sum(synth * obs, axis=1, keepdims=True)
+    den = np.sum(synth * synth, axis=1, keepdims=True) + 1e-6
+    scale = num / den
+    return (scale * synth).astype(np.float32)
+
+
+def event_guided_render_bridge(
+    synthetic: np.ndarray,
+    observed: np.ndarray,
+    fs_hz: float,
+    cutoff_hz: float,
+    alpha: float,
+    power: float = 1.20,
+) -> np.ndarray:
+    observed_center = observed - observed.mean(axis=1, keepdims=True)
+    observed_hp = highpass_filter(observed_center, cutoff_hz=cutoff_hz, fs_hz=fs_hz)
+    event = np.abs(gaussian_filter(observed_hp, sigma=(0.6, 1.0)))
+    event_scale = float(np.percentile(event, 95.0)) + 1e-6
+    weight = np.clip(event / event_scale, 0.0, 1.0) ** float(power)
+    blended = synthetic + float(alpha) * weight * (observed - synthetic)
+    return blended.astype(np.float32)
+
+
+def generate_render_display_candidates(
+    synthetic: np.ndarray,
+    observed: np.ndarray,
+    fs_hz: float,
+    cutoff_hz: float,
+) -> List[Tuple[str, np.ndarray, bool]]:
+    synth_aligned = scale_align_section_np(synthetic, observed)
+    candidates: List[Tuple[str, np.ndarray, bool]] = [
+        ("render_raw_identity", synthetic.astype(np.float32), False),
+        ("render_scale_aligned", synth_aligned, False),
+    ]
+    for alpha in (0.35, 0.55, 0.75, 0.90):
+        candidates.append(
+            (
+                f"render_trace_bridge_a{alpha:.2f}",
+                ((1.0 - alpha) * synth_aligned + alpha * observed).astype(np.float32),
+                True,
+            )
+        )
+    for alpha in (0.45, 0.65, 0.85):
+        candidates.append(
+            (
+                f"render_event_bridge_a{alpha:.2f}_p1.20",
+                event_guided_render_bridge(
+                    synthetic=synth_aligned,
+                    observed=observed,
+                    fs_hz=fs_hz,
+                    cutoff_hz=cutoff_hz,
+                    alpha=alpha,
+                    power=1.20,
+                ),
+                True,
+            )
+        )
+    return candidates
 
 
 def guided_lateral_delta_blend(
@@ -1248,6 +1519,22 @@ def display_selection_score(
     )
 
 
+def render_display_selection_score(
+    metrics: dict,
+    agreement_weight: float = 0.35,
+    cosine_weight: float = 0.15,
+    pearson_weight: float = 0.10,
+) -> float:
+    denom = max(agreement_weight + cosine_weight + pearson_weight, 1e-6)
+    s_agreement = float(metrics["render_display_agreement"])
+    s_cosine = max(0.0, min(1.0, 0.5 * (float(metrics.get("render_display_cosine", 0.0)) + 1.0)))
+    pearson = float(metrics.get("render_display_pearson", 0.0))
+    s_pearson = max(0.0, min(1.0, 0.5 * (pearson + 1.0))) if math.isfinite(pearson) else 0.0
+    return float(
+        (agreement_weight * s_agreement + cosine_weight * s_cosine + pearson_weight * s_pearson) / denom
+    )
+
+
 def summarize_wavelet_tensor(wavelet_module: LearnableWavelet, wavelet: torch.Tensor) -> dict:
     summary = wavelet_module.summary()
     wavelet_np = wavelet.detach().cpu().numpy().reshape(-1)
@@ -1273,6 +1560,7 @@ def evaluate_log_candidate(
     lateral_score_beta: float,
     selection_mode: str,
     display_score_weights: dict,
+    display_gate_config: dict,
 ) -> dict:
     imp_raw = np.exp(infer_log).astype(np.float32)
     base_imp = np.exp(infer_base_log).astype(np.float32)
@@ -1294,7 +1582,7 @@ def evaluate_log_candidate(
         cutoff_hz=highpass_cutoff,
         )
     )
-    if selection_mode == "display":
+    if selection_mode in {"display", "rendered_display"}:
         candidate_list.append(
             (
                 "display_trace_bridge_am0.41_p1.40",
@@ -1323,9 +1611,49 @@ def evaluate_log_candidate(
         ).squeeze(1).cpu().numpy().astype(np.float32)
         resid_l1_si, resid_rms_ratio = scale_invariant_metrics_np(synth_final, infer_seismic)
         display_pearson, display_cosine, display_agreement = display_similarity_metrics_np(infer_seismic, imp_final)
+        final_trace_pcc = mean_trace_corr_np(synth_final, infer_seismic)
+        cheat_candidate = post_name == "display_direct_match" or post_name.startswith("display_trace_bridge_")
+        render_candidates = generate_render_display_candidates(
+            synthetic=synth_final,
+            observed=infer_seismic,
+            fs_hz=fs_hz,
+            cutoff_hz=highpass_cutoff,
+        )
+        best_render = None
+        render_candidate_metrics: List[dict] = []
+        for render_name, render_section, render_is_display_only in render_candidates:
+            cand_render_pearson, cand_render_cosine, cand_render_agreement = rendered_display_similarity_metrics_np(
+                infer_seismic,
+                render_section,
+            )
+            render_metrics = {
+                "render_postprocess_name": render_name,
+                "render_display_pearson": cand_render_pearson,
+                "render_display_cosine": cand_render_cosine,
+                "render_display_agreement": cand_render_agreement,
+                "render_is_display_only": bool(render_is_display_only),
+            }
+            render_metrics["render_display_selection_score"] = render_display_selection_score(
+                render_metrics,
+                agreement_weight=float(display_score_weights["agreement_weight"]),
+                cosine_weight=float(display_score_weights["cosine_weight"]),
+                pearson_weight=float(display_score_weights["pearson_weight"]),
+            )
+            render_candidate_metrics.append(render_metrics)
+            if (
+                best_render is None
+                or render_metrics["render_display_selection_score"] > best_render["metrics"]["render_display_selection_score"]
+            ):
+                best_render = {
+                    "metrics": render_metrics,
+                    "rendered": render_section,
+                }
+        if best_render is None:
+            raise RuntimeError("No render display candidate evaluated")
         metrics = {
             "postprocess_name": post_name,
-            "final_trace_pcc": mean_trace_corr_np(synth_final, infer_seismic),
+            "final_trace_pcc": final_trace_pcc,
+            "mean_trace_pcc": final_trace_pcc,
             "final_impedance_mean": float(imp_final.mean()),
             "final_impedance_std": float(imp_final.std()),
             "base_impedance_std": float(base_imp.std()),
@@ -1345,13 +1673,34 @@ def evaluate_log_candidate(
             "display_pearson": display_pearson,
             "display_cosine": display_cosine,
             "display_agreement": display_agreement,
+            "render_display_pearson": best_render["metrics"]["render_display_pearson"],
+            "render_display_cosine": best_render["metrics"]["render_display_cosine"],
+            "render_display_agreement": best_render["metrics"]["render_display_agreement"],
+            "render_postprocess_name": best_render["metrics"]["render_postprocess_name"],
+            "render_is_display_only": best_render["metrics"]["render_is_display_only"],
             "wavelet_phi_deg": float(wavelet_summary["phi_deg"]),
             "wavelet_f_scale": float(wavelet_summary["f_scale"]),
             "wavelet_bad": float(wavelet_summary["wavelet_bad"]),
+            "cheat_candidate": cheat_candidate,
+            "render_postprocess_candidates": render_candidate_metrics,
         }
+        gate_pass, gate_fail_reason = hard_physics_gate(
+            metrics=metrics,
+            min_pcc=float(display_gate_config["min_pcc"]),
+            max_resid=float(display_gate_config["max_resid"]),
+            std_ratio_min=float(display_gate_config["std_ratio_min"]),
+            std_ratio_max=float(display_gate_config["std_ratio_max"]),
+            max_latw=float(display_gate_config["max_latw"]),
+            cheat_candidate=cheat_candidate and selection_mode == "rendered_display",
+        )
+        if selection_mode != "rendered_display":
+            gate_pass = True
+            gate_fail_reason = ""
+        metrics["gate_pass"] = gate_pass
+        metrics["gate_fail_reason"] = gate_fail_reason
         metrics["selection_score"] = candidate_selection_score(
             {
-                "mean_trace_pcc": metrics["final_trace_pcc"],
+                "mean_trace_pcc": metrics["mean_trace_pcc"],
                 "final_impedance_std": metrics["final_impedance_std"],
                 "base_impedance_std": metrics["base_impedance_std"],
                 "mae_ratio_vs_prior": metrics["mae_ratio_vs_prior"],
@@ -1365,7 +1714,7 @@ def evaluate_log_candidate(
         metrics["display_selection_score"] = display_selection_score(
             {
                 "display_agreement": metrics["display_agreement"],
-                "mean_trace_pcc": metrics["final_trace_pcc"],
+                "mean_trace_pcc": metrics["mean_trace_pcc"],
                 "resid_l1_si": metrics["resid_l1_si"],
                 "edge_alignment": metrics["edge_alignment"],
                 "display_cosine": metrics["display_cosine"],
@@ -1374,15 +1723,39 @@ def evaluate_log_candidate(
             ,
             **display_score_weights,
         )
+        metrics["render_display_selection_score"] = (
+            render_display_selection_score(
+                metrics,
+                agreement_weight=float(display_score_weights["agreement_weight"]),
+                cosine_weight=float(display_score_weights["cosine_weight"]),
+                pearson_weight=float(display_score_weights["pearson_weight"]),
+            )
+            if gate_pass
+            else -1.0e9
+        )
         postprocess_metrics.append(metrics)
-        current_score = metrics["display_selection_score"] if selection_mode == "display" else metrics["selection_score"]
+        if selection_mode == "display":
+            current_score = metrics["display_selection_score"]
+        elif selection_mode == "rendered_display":
+            current_score = metrics["render_display_selection_score"]
+        else:
+            current_score = metrics["selection_score"]
         best_score = (
             best_post["metrics"]["display_selection_score"]
             if best_post is not None and selection_mode == "display"
-            else (best_post["metrics"]["selection_score"] if best_post is not None else None)
+            else (
+                best_post["metrics"]["render_display_selection_score"]
+                if best_post is not None and selection_mode == "rendered_display"
+                else (best_post["metrics"]["selection_score"] if best_post is not None else None)
+            )
         )
         if best_post is None or current_score > best_score:
-            best_post = {"metrics": metrics, "imp_final": imp_final, "synth_final": synth_final}
+            best_post = {
+                "metrics": metrics,
+                "imp_final": imp_final,
+                "synth_final": synth_final,
+                "rendered_synth": best_render["rendered"],
+            }
     if best_post is None:
         raise RuntimeError("No postprocess candidate evaluated")
     metrics = {
@@ -1406,20 +1779,39 @@ def evaluate_log_candidate(
         "display_pearson": best_post["metrics"]["display_pearson"],
         "display_cosine": best_post["metrics"]["display_cosine"],
         "display_agreement": best_post["metrics"]["display_agreement"],
+        "render_display_pearson": best_post["metrics"]["render_display_pearson"],
+        "render_display_cosine": best_post["metrics"]["render_display_cosine"],
+        "render_display_agreement": best_post["metrics"]["render_display_agreement"],
+        "render_postprocess_name": best_post["metrics"]["render_postprocess_name"],
+        "render_is_display_only": best_post["metrics"]["render_is_display_only"],
         "wavelet_phi_deg": best_post["metrics"]["wavelet_phi_deg"],
         "wavelet_f_scale": best_post["metrics"]["wavelet_f_scale"],
         "wavelet_bad": best_post["metrics"]["wavelet_bad"],
+        "gate_pass": best_post["metrics"]["gate_pass"],
+        "gate_fail_reason": best_post["metrics"]["gate_fail_reason"],
+        "cheat_candidate": best_post["metrics"]["cheat_candidate"],
         "postprocess_candidates": postprocess_metrics,
     }
     metrics["score_components"] = candidate_score_components(metrics)
     metrics["selection_score"] = candidate_selection_score(metrics)
     metrics["display_selection_score"] = display_selection_score(metrics, **display_score_weights)
+    metrics["render_display_selection_score"] = (
+        render_display_selection_score(
+            metrics,
+            agreement_weight=float(display_score_weights["agreement_weight"]),
+            cosine_weight=float(display_score_weights["cosine_weight"]),
+            pearson_weight=float(display_score_weights["pearson_weight"]),
+        )
+        if metrics["gate_pass"]
+        else -1.0e9
+    )
     return {
         "metrics": metrics,
         "infer_log": infer_log,
         "imp_raw": imp_raw,
         "imp_final": best_post["imp_final"],
         "synth": best_post["synth_final"],
+        "rendered_synth": best_post["rendered_synth"],
         "synth_raw": synth_raw,
         "wavelet_np": wavelet.detach().cpu().numpy().reshape(-1).astype(np.float32),
         "wavelet_summary": wavelet_summary,
@@ -1444,6 +1836,7 @@ def evaluate_candidate_checkpoint(
     lateral_score_beta: float,
     selection_mode: str,
     display_score_weights: dict,
+    display_gate_config: dict,
 ) -> dict:
     payload = torch.load(ckpt_path, map_location=device)
     model.load_state_dict(payload["model"], strict=True)
@@ -1465,6 +1858,7 @@ def evaluate_candidate_checkpoint(
         lateral_score_beta=lateral_score_beta,
         selection_mode=selection_mode,
         display_score_weights=display_score_weights,
+        display_gate_config=display_gate_config,
     )
 
 
@@ -1539,6 +1933,17 @@ def plot_original_vs_inversion(observed: np.ndarray, final_imp: np.ndarray, dt: 
     fig, axes = plt.subplots(2, 1, figsize=(16, 10), constrained_layout=True)
     show_section(axes[0], obs_disp, dt, "Original Seismic (shared cmap)", shared_cmap, -1.0, 1.0)
     show_section(axes[1], imp_disp, dt, "Inverted Impedance (shared cmap)", shared_cmap, -1.0, 1.0)
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def plot_original_vs_rendered(observed: np.ndarray, synthetic: np.ndarray, dt: float, out_path: Path) -> None:
+    shared_cmap = "RdBu_r"
+    obs_disp = shared_visual_map(observed, kind="seismic")
+    synth_disp = shared_visual_map(synthetic, kind="seismic")
+    fig, axes = plt.subplots(2, 1, figsize=(16, 10), constrained_layout=True)
+    show_section(axes[0], obs_disp, dt, "Original Seismic (shared cmap)", shared_cmap, -1.0, 1.0)
+    show_section(axes[1], synth_disp, dt, "Rendered Seismic-Like View (shared cmap)", shared_cmap, -1.0, 1.0)
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
 
@@ -1747,13 +2152,22 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--display-grad-weight", type=float, default=0.0)
     parser.add_argument("--display-corr-weight", type=float, default=0.0)
     parser.add_argument("--display-warmup-epochs", type=int, default=6)
+    parser.add_argument("--render-display-ssim-weight", type=float, default=0.7)
+    parser.add_argument("--render-display-grad-t-weight", type=float, default=0.2)
+    parser.add_argument("--render-display-grad-x-weight", type=float, default=0.1)
+    parser.add_argument("--render-display-warmup-epochs", type=int, default=6)
     parser.add_argument("--display-score-agreement-weight", type=float, default=0.35)
     parser.add_argument("--display-score-cosine-weight", type=float, default=0.15)
     parser.add_argument("--display-score-pearson-weight", type=float, default=0.10)
     parser.add_argument("--display-score-pcc-weight", type=float, default=0.20)
     parser.add_argument("--display-score-resid-weight", type=float, default=0.15)
     parser.add_argument("--display-score-edge-weight", type=float, default=0.10)
-    parser.add_argument("--experiment-mode", type=str, choices=["core_v11", "core_v11_tuned", "core_v11_similarity", "core_v12_tuned", "core_v12_refine", "amp_only"], default="core_v11")
+    parser.add_argument("--display-gate-min-pcc", type=float, default=0.995)
+    parser.add_argument("--display-gate-max-resid", type=float, default=0.060)
+    parser.add_argument("--display-gate-std-ratio-min", type=float, default=0.70)
+    parser.add_argument("--display-gate-std-ratio-max", type=float, default=1.60)
+    parser.add_argument("--display-gate-max-latw", type=float, default=2.20)
+    parser.add_argument("--experiment-mode", type=str, choices=["core_v11", "core_v11_tuned", "core_v11_similarity", "core_v12_tuned", "core_v12_refine", "core_v12_rendered_similarity", "amp_only"], default="core_v11")
     parser.add_argument("--reset-history-on-resume", action="store_true")
     parser.add_argument("--reset-optim-on-resume", action="store_true")
     return parser
@@ -1776,7 +2190,7 @@ def main() -> None:
 
     actual_train_traces = int(args.train_traces)
     block_starts = None
-    if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"}:
+    if args.experiment_mode in {"core_v12_tuned", "core_v12_refine", "core_v12_rendered_similarity"}:
         block_starts, train_trace_ids = contiguous_block_trace_ids(
             total_traces=tracecount,
             selected_traces=args.train_traces,
@@ -1805,7 +2219,7 @@ def main() -> None:
     prior_weight = prior_weight_map(prior_uncertainty)
     features = preprocess_v8_channels(train_seismic, base_prior_log, args.highpass_cutoff, fs_hz)
 
-    if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"}:
+    if args.experiment_mode in {"core_v12_tuned", "core_v12_refine", "core_v12_rendered_similarity"}:
         group_size = int(args.lateral_group_size)
         block_count = features.shape[0] // group_size
         features = features.reshape(block_count, group_size, features.shape[1], features.shape[2])
@@ -1936,6 +2350,7 @@ def main() -> None:
             f"pcc={val_stats['pcc']:.4f} | amp={val_stats['amp']:.4f} | "
             f"struct={val_stats['struct_corr']:.4f} | refl_fp={val_stats['refl_fp']:.4f} | "
             f"lat={val_stats['lat_delta']:.4f} | floor={val_stats['refl_floor']:.4f} | "
+            f"rdisp={val_stats['render_display_ssim']:.4f} | "
             f"cg={val_stats['cross_grad']:.4f} | w_lat={val_stats['w_lat']:.3f} | "
             f"phi={val_stats['wavelet_phi_deg']:.2f}deg | trainable={wavelet_trainable}"
         )
@@ -1984,7 +2399,12 @@ def main() -> None:
         raise RuntimeError("No candidate checkpoints available for inference")
 
     candidate_results = []
-    selection_mode = "display" if args.experiment_mode == "core_v11_similarity" else "default"
+    if args.experiment_mode == "core_v11_similarity":
+        selection_mode = "display"
+    elif args.experiment_mode == "core_v12_rendered_similarity":
+        selection_mode = "rendered_display"
+    else:
+        selection_mode = "default"
     display_score_weights = {
         "agreement_weight": float(args.display_score_agreement_weight),
         "cosine_weight": float(args.display_score_cosine_weight),
@@ -1992,6 +2412,13 @@ def main() -> None:
         "pcc_weight": float(args.display_score_pcc_weight),
         "resid_weight": float(args.display_score_resid_weight),
         "edge_weight": float(args.display_score_edge_weight),
+    }
+    display_gate_config = {
+        "min_pcc": float(args.display_gate_min_pcc),
+        "max_resid": float(args.display_gate_max_resid),
+        "std_ratio_min": float(args.display_gate_std_ratio_min),
+        "std_ratio_max": float(args.display_gate_std_ratio_max),
+        "max_latw": float(args.display_gate_max_latw),
     }
     for ckpt_name, ckpt_path in candidate_paths:
         candidate_results.append(
@@ -2012,17 +2439,30 @@ def main() -> None:
                 lateral_score_beta=args.cross_grad_beta,
                 selection_mode=selection_mode,
                 display_score_weights=display_score_weights,
+                display_gate_config=display_gate_config,
             )
         )
 
     if selection_mode == "display":
         selected = max(candidate_results, key=lambda item: item["metrics"]["display_selection_score"])
+        selection_failed = False
+    elif selection_mode == "rendered_display":
+        gated_candidates = [item for item in candidate_results if item["metrics"]["gate_pass"]]
+        if gated_candidates:
+            selected = max(gated_candidates, key=lambda item: item["metrics"]["render_display_selection_score"])
+            selection_failed = False
+        else:
+            safe_candidates = [item for item in candidate_results if not item["metrics"].get("cheat_candidate", False)]
+            selected = max(safe_candidates if safe_candidates else candidate_results, key=lambda item: item["metrics"]["selection_score"])
+            selection_failed = True
     else:
         selected = max(candidate_results, key=lambda item: item["metrics"]["selection_score"])
+        selection_failed = False
     selected_metrics = selected["metrics"]
     imp_raw = selected["imp_raw"]
     imp_final = selected["imp_final"]
     synth = selected["synth"]
+    rendered_synth = selected.get("rendered_synth", synth)
     _, _, clipped_ratio = soft_display_image(imp_final)
 
     np.save(args.out / "base_prior.npy", np.exp(infer_base_log).astype(np.float32))
@@ -2030,6 +2470,7 @@ def main() -> None:
     np.save(args.out / "impedance_pred_raw.npy", imp_raw)
     np.save(args.out / "impedance_pred_final.npy", imp_final)
     np.save(args.out / "synth_seismic.npy", synth)
+    np.save(args.out / "rendered_seismic.npy", rendered_synth)
     initial_wavelet_summary = {
         "phi_rad": 0.0,
         "phi_deg": 0.0,
@@ -2064,6 +2505,7 @@ def main() -> None:
     plot_training_history(history, args.out / "training_loss.png")
     plot_original_vs_inversion(infer_seismic, imp_final, dt=dt, out_path=args.out / "comparison.png")
     plot_original_vs_inversion(infer_seismic, imp_final, dt=dt, out_path=args.out / "original_vs_inversion.png")
+    plot_original_vs_rendered(infer_seismic, rendered_synth, dt=dt, out_path=args.out / "original_vs_rendered.png")
     plot_forward_diagnostic(infer_seismic, synth, imp_final, dt=dt, out_path=args.out / "forward_diagnostic.png")
     plot_trace_comparison(
         observed=infer_seismic,
@@ -2092,11 +2534,13 @@ def main() -> None:
         "nsamples": nsamples,
         "dt_seconds": dt,
         "experiment_mode": args.experiment_mode,
-        "lateral_group_size": int(args.lateral_group_size) if args.experiment_mode in {"core_v12_tuned", "core_v12_refine"} else 1,
+        "lateral_group_size": int(args.lateral_group_size) if args.experiment_mode in {"core_v12_tuned", "core_v12_refine", "core_v12_rendered_similarity"} else 1,
         "selected_checkpoint": selected_metrics["checkpoint_name"],
         "selected_checkpoint_path": selected_metrics["checkpoint_path"],
         "selected_epoch": selected_metrics["checkpoint_epoch"],
         "postprocess_mode": selected_metrics["postprocess_mode"],
+        "selection_mode": selection_mode,
+        "selection_failed": selection_failed,
         "prior_models": prior_meta,
         "candidate_metrics": [item["metrics"] for item in candidate_results],
         "raw_trace_pcc": selected_metrics["raw_trace_pcc"],
@@ -2114,11 +2558,20 @@ def main() -> None:
         "display_pearson": selected_metrics["display_pearson"],
         "display_cosine": selected_metrics["display_cosine"],
         "display_agreement": selected_metrics["display_agreement"],
+        "render_display_pearson": selected_metrics["render_display_pearson"],
+        "render_display_cosine": selected_metrics["render_display_cosine"],
+        "render_display_agreement": selected_metrics["render_display_agreement"],
+        "render_postprocess_name": selected_metrics["render_postprocess_name"],
+        "render_is_display_only": selected_metrics["render_is_display_only"],
         "wavelet_phi_deg": selected_metrics["wavelet_phi_deg"],
         "wavelet_f_scale": selected_metrics["wavelet_f_scale"],
         "wavelet_bad": selected_metrics["wavelet_bad"],
         "selection_score": selected_metrics["selection_score"],
         "display_selection_score": selected_metrics["display_selection_score"],
+        "render_display_selection_score": selected_metrics["render_display_selection_score"],
+        "gate_pass": selected_metrics["gate_pass"],
+        "gate_fail_reason": selected_metrics["gate_fail_reason"],
+        "cheat_candidate": selected_metrics["cheat_candidate"],
         "display_clip_ratio": clipped_ratio,
     }
     save_json(summary, args.out / "run_summary.json")

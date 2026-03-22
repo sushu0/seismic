@@ -1,0 +1,11 @@
+{
+  "truth_path": "d:\\SEISMIC_CODING\\zmy_data\\01\\data\\01_20Hz_04.txt",
+  "result_dir": "d:\\SEISMIC_CODING\\new\\results\\01_20Hz_thinlayer_optimized_v2",
+  "pred_path": "d:\\SEISMIC_CODING\\new\\results\\01_20Hz_thinlayer_optimized_v2\\pred_full.npy",
+  "out_png": "d:\\SEISMIC_CODING\\new\\paper_figures\\fig_shallow_thinlayer_20Hz_optimized_v2.png",
+  "out_pdf": "d:\\SEISMIC_CODING\\new\\paper_figures\\fig_shallow_thinlayer_20Hz_optimized_v2.pdf",
+  "color_scale_percentiles": [
+    1.0,
+    99.0
+  ]
+}

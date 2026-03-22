@@ -86,6 +86,7 @@ new/real_data_inference/.git/
 
 # Local archives
 new.rar
+tmp_paper_*.txt
 
 # SGY inversion experiment outputs (keep only selected summaries via forced add)
 new/sgy_inversion_output/

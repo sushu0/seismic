@@ -1,0 +1,57 @@
+{
+  "figure": {
+    "png": "D:\\SEISMIC_CODING\\new\\paper_figures\\fig_marmousi2_baseline_comparison.png",
+    "pdf": "D:\\SEISMIC_CODING\\new\\paper_figures\\fig_marmousi2_baseline_comparison.pdf",
+    "colormap": "viridis",
+    "shared_vmin": 1634.5191650390625,
+    "shared_vmax": 12346.8994140625,
+    "dpi": 600.0
+  },
+  "sources": [
+    {
+      "label": "Reference",
+      "paths": [
+        "D:\\SEISMIC_CODING\\new\\data.npy"
+      ],
+      "note": "Reference impedance taken from new/data.npy and linearly resampled from 1880 to 470 samples for a common comparison domain."
+    },
+    {
+      "label": "CNN-BiLSTM (semi-supervised)",
+      "paths": [
+        "D:\\SEISMIC_CODING\\comparison01\\seismic.npy",
+        "D:\\SEISMIC_CODING\\comparison01\\norm_params.json",
+        "D:\\SEISMIC_CODING\\comparison01\\marmousi_cnn_bilstm_semi.pth",
+        "D:\\SEISMIC_CODING\\comparison01\\marmousi_cnn_bilstm.py"
+      ],
+      "note": "Recomputed from the final semi-supervised CNN-BiLSTM checkpoint instead of using an existing screenshot figure."
+    },
+    {
+      "label": "FCRSN-CW",
+      "paths": [
+        "D:\\SEISMIC_CODING\\comparison02\\runs\\marmousi2\\results\\pred_impedance_all.npy",
+        "D:\\SEISMIC_CODING\\comparison02\\runs\\marmousi2\\results\\true_impedance_all.npy"
+      ],
+      "note": "Full-resolution FCRSN-CW prediction resampled linearly from 1880 to 470 samples for fair side-by-side comparison."
+    },
+    {
+      "label": "Semi-supervised WGAN-GP",
+      "paths": [
+        "D:\\SEISMIC_CODING\\comparison03\\runs\\optimized_v3_advanced\\pred_test.npz",
+        "D:\\SEISMIC_CODING\\comparison03\\runs\\optimized_v3_advanced\\stats.json",
+        "D:\\SEISMIC_CODING\\comparison03\\data\\marmousi2_2721_like_l101.npz"
+      ],
+      "note": "Prediction denormalized from the optimized_v3_advanced semi-supervised GAN/WGAN-GP run. Its packaged Marmousi2 conversion is highly consistent with the repo-wide common truth."
+    },
+    {
+      "label": "Proposed Method",
+      "paths": [
+        "D:\\SEISMIC_CODING\\new\\data.npy",
+        "D:\\SEISMIC_CODING\\new\\configs\\exp_real_data.yaml",
+        "D:\\SEISMIC_CODING\\new\\results\\real_unet1d_optimized\\norm_stats.json",
+        "D:\\SEISMIC_CODING\\new\\results\\real_unet1d_optimized\\checkpoints\\best.pt",
+        "D:\\SEISMIC_CODING\\new\\seisinv\\models\\baselines.py"
+      ],
+      "note": "Regenerated from the best checkpoint of the Marmousi2-derived real_unet1d_optimized line in new/."
+    }
+  ]
+}

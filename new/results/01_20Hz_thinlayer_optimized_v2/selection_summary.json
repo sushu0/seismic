@@ -1,0 +1,49 @@
+{
+  "selected_from": "d:\\SEISMIC_CODING\\new\\results\\01_20Hz_thinlayer_refined_v2\\checkpoints\\last.pt",
+  "stored_epoch": 10,
+  "selection_rationale": "Chosen as the final 20 Hz paper result because it improves full-section and shallow-window structural agreement over the old paper checkpoint while remaining conservative in resolution.",
+  "val_metrics": {
+    "mse": 0.16128641366958618,
+    "pcc": 0.9095495162318027,
+    "r2": 0.8271039724349976,
+    "thin_mse": 731918630912.0,
+    "thin_pcc": 0.2635221354905305,
+    "dpde_mean": 1.2083333333333333,
+    "separability_mean": 0.9735024571418762,
+    "thin_f1": 0.001951616181955857,
+    "thin_precision": 0.0009767612225794597,
+    "thin_recall": 0.9999999999958334
+  },
+  "test_metrics": {
+    "mse": 0.12413101643323898,
+    "pcc": 0.9402572670484423,
+    "r2": 0.8835394382476807,
+    "thin_mse": 401261789184.0,
+    "thin_pcc": 0.40165664807736895,
+    "dpde_mean": 1.12,
+    "separability_mean": 0.9717535972595215,
+    "thin_f1": 0.0020206102240858622,
+    "thin_precision": 0.00101132686084142,
+    "thin_recall": 0.9999999999960001
+  },
+  "val_selection_score": 0.7575257601737122,
+  "test_selection_score": 0.8091898099058132,
+  "full_section_metrics": {
+    "full_pcc": 0.9434440149932957,
+    "full_r2": 0.8900347071440706,
+    "full_mae": 27952.59765625,
+    "full_rmse": 198436.875
+  },
+  "shallow_window_metrics": {
+    "window_samples": [
+      3000,
+      6000
+    ],
+    "window_pcc": 0.9329118909199097,
+    "window_r2": 0.8703105123164352,
+    "window_mae": 64100.64453125,
+    "window_rmse": 307779.53125,
+    "window_grad_pcc": 0.08442015582535972,
+    "window_lateral_grad_rmse": 370782.9375
+  }
+}

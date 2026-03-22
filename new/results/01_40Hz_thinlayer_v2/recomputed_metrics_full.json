@@ -1,0 +1,28 @@
+{
+  "checkpoint": "d:\\SEISMIC_CODING\\new\\results\\01_40Hz_thinlayer_v2\\checkpoints\\best.pt",
+  "epoch": 99,
+  "val_metrics": {
+    "mse": 0.15859518945217133,
+    "pcc": 0.9118498444793885,
+    "r2": 0.829988956451416,
+    "thin_mse": 414481448960.0,
+    "thin_pcc": 0.3111861661909501,
+    "dpde_mean": 1.2083333333333333,
+    "separability_mean": 0.9854653477668762,
+    "thin_f1": 0.0023010546498180764,
+    "thin_precision": 0.001151852562871947,
+    "thin_recall": 0.9999999999958334
+  },
+  "test_metrics": {
+    "mse": 0.10422111302614212,
+    "pcc": 0.9501054757404878,
+    "r2": 0.9022190570831299,
+    "thin_mse": 379002880000.0,
+    "thin_pcc": 0.4149250532079148,
+    "dpde_mean": 1.48,
+    "separability_mean": 0.9792507886886597,
+    "thin_f1": 0.002415108921171113,
+    "thin_precision": 0.0012090144114517787,
+    "thin_recall": 0.9999999999960001
+  }
+}

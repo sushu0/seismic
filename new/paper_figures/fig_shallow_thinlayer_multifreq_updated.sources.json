@@ -1,0 +1,15 @@
+{
+  "truth_path": "D:\\SEISMIC_CODING\\zmy_data\\01\\data\\01_40Hz_04.txt",
+  "result_20": "D:\\SEISMIC_CODING\\new\\results\\01_20Hz_thinlayer_refined",
+  "result_30": "D:\\SEISMIC_CODING\\new\\results\\01_30Hz_thinlayer_refined",
+  "result_40": "D:\\SEISMIC_CODING\\new\\results\\01_40Hz_thinlayer_v2",
+  "pred_20": "D:\\SEISMIC_CODING\\new\\results\\01_20Hz_thinlayer_refined\\pred_full.npy",
+  "pred_30": "D:\\SEISMIC_CODING\\new\\results\\01_30Hz_thinlayer_refined\\pred_full.npy",
+  "pred_40": "D:\\SEISMIC_CODING\\new\\results\\01_40Hz_thinlayer_v2\\pred_full.npy",
+  "out_png": "D:\\SEISMIC_CODING\\new\\paper_figures\\fig_shallow_thinlayer_multifreq_updated.png",
+  "out_pdf": "D:\\SEISMIC_CODING\\new\\paper_figures\\fig_shallow_thinlayer_multifreq_updated.pdf",
+  "color_scale_percentiles": [
+    1.0,
+    99.0
+  ]
+}

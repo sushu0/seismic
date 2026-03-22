@@ -1,0 +1,97 @@
+{
+  "freq": "30Hz",
+  "init_ckpt": "D:\\SEISMIC_CODING\\new\\results\\01_30Hz_verified\\checkpoints\\last.pt",
+  "default_reference_dir": "D:\\SEISMIC_CODING\\new\\results\\01_30Hz_verified",
+  "output_dir": "D:\\SEISMIC_CODING\\new\\results\\01_30Hz_thinlayer_refined",
+  "train_epochs_requested": 80,
+  "train_epochs_completed": 52,
+  "learning_rate": 5e-05,
+  "weight_decay": 1e-05,
+  "patience": 20,
+  "baseline": {
+    "val_metrics": {
+      "mse": 0.17108014225959778,
+      "pcc": 0.9039501973767764,
+      "r2": 0.8166053295135498,
+      "thin_mse": 861233414144.0,
+      "thin_pcc": 0.27382966477291903,
+      "dpde_mean": 1.5416666666666667,
+      "separability_mean": 0.9876909255981445,
+      "thin_f1": 0.0019333789823661439,
+      "thin_precision": 0.0009676248840865986,
+      "thin_recall": 0.9999999999958334
+    },
+    "test_metrics": {
+      "mse": 0.11891505122184753,
+      "pcc": 0.9434869647114914,
+      "r2": 0.8884330987930298,
+      "thin_mse": 547458088960.0,
+      "thin_pcc": 0.37852700534446054,
+      "dpde_mean": 1.56,
+      "separability_mean": 0.9898694753646851,
+      "thin_f1": 0.001941069140688865,
+      "thin_precision": 0.0009714774228646889,
+      "thin_recall": 0.9999999999960001
+    },
+    "selection_score": 0.7509193799695542
+  },
+  "selected_checkpoint": {
+    "path": "D:\\SEISMIC_CODING\\new\\results\\01_30Hz_thinlayer_refined\\checkpoints\\best.pt",
+    "stored_epoch": 32,
+    "selection_score": 0.776614294913817,
+    "val_metrics": {
+      "mse": 0.15981118381023407,
+      "pcc": 0.9111807816004304,
+      "r2": 0.8286854028701782,
+      "thin_mse": 499763019776.0,
+      "thin_pcc": 0.35808644624925334,
+      "dpde_mean": 1.375,
+      "separability_mean": 0.9898602366447449,
+      "thin_f1": 0.0018968583282040776,
+      "thin_precision": 0.0009493295360151856,
+      "thin_recall": 0.9999999999958334
+    },
+    "test_metrics": {
+      "mse": 0.0872708112001419,
+      "pcc": 0.9582270884111547,
+      "r2": 0.9181219339370728,
+      "thin_mse": 314213695488.0,
+      "thin_pcc": 0.44524746723936015,
+      "dpde_mean": 1.92,
+      "separability_mean": 0.9896668195724487,
+      "thin_f1": 0.0019009961217779777,
+      "thin_precision": 0.0009514023670890858,
+      "thin_recall": 0.9999999999960001
+    }
+  },
+  "best_payload": {
+    "source": "refined",
+    "epoch": 32,
+    "val_metrics": {
+      "mse": 0.15981118381023407,
+      "pcc": 0.9111807816004304,
+      "r2": 0.8286854028701782,
+      "thin_mse": 499763019776.0,
+      "thin_pcc": 0.35808644624925334,
+      "dpde_mean": 1.375,
+      "separability_mean": 0.9898602366447449,
+      "thin_f1": 0.0018968583282040776,
+      "thin_precision": 0.0009493295360151856,
+      "thin_recall": 0.9999999999958334
+    },
+    "test_metrics": {
+      "mse": 0.0872708112001419,
+      "pcc": 0.9582270884111547,
+      "r2": 0.9181219339370728,
+      "thin_mse": 314213695488.0,
+      "thin_pcc": 0.44524746723936015,
+      "dpde_mean": 1.92,
+      "separability_mean": 0.9896668195724487,
+      "thin_f1": 0.0019009961217779777,
+      "thin_precision": 0.0009514023670890858,
+      "thin_recall": 0.9999999999960001
+    },
+    "selection_score": 0.776614294913817
+  },
+  "pred_full_path": "D:\\SEISMIC_CODING\\new\\results\\01_30Hz_thinlayer_refined\\pred_full.npy"
+}
